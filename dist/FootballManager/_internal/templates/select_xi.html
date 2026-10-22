@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sắp Xếp Đội Hình - {{ team.name }}</title>
+    <style>
+        :root {
+            --bg-dark: #080c14;
+            --card-bg: #0f172a;
+            --primary: #10b981;
+            --accent: #38bdf8;
+            --danger: #ef4444;
+            --gold: #f59e0b;
+            --border: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --pitch-bg: #15803d;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { background: var(--bg-dark); color: var(--text-main); min-height: 100vh; padding: 16px; }
+        .container { max-width: 1250px; margin: 0 auto; }
+
+        /* ===== HEADER & THANH ĐIỀU KHIỂN ĐỘI HÌNH ===== */
+        .page-header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px 24px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+
+        .header-title h1 { font-size: 1.5rem; color: #fff; display: flex; align-items: center; gap: 10px; }
+        .header-title p { color: var(--text-muted); font-size: 0.88rem; margin-top: 2px; }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .formation-picker {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #fff;
+            padding: 8px 14px;
+            border-radius: 10px;
+            outline: none;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 16px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.88rem;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+        .btn-auto {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+        }
+        .btn-auto:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5); }
+
+        .btn-save {
+            background: var(--primary);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35);
+        }
+        .btn-save:hover { background: #059669; transform: translateY(-2px); }
+        .btn-save:disabled { background: #334155; color: #64748b; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .btn-back { background: #334155; color: #fff; }
+        .btn-back:hover { background: #475569; }
+
+        /* Bộ đếm cầu thủ */
+        .selection-counter {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+        .counter-badge {
+            color: var(--gold);
+            font-size: 1.15rem;
+        }
+        .counter-badge.ready { color: #4ade80; }
+
+        /* Thông báo lỗi */
+        .alert-error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid var(--danger);
+            color: #fca5a5;
+            padding: 10px 16px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+        }
+
+        /* ===== BỐ CỤC CHÍNH (SÂN CỎ TRÁI - DANH SÁCH PHẢI) ===== */
+        .tactics-layout {
+            display: grid;
+            grid-template-columns: 500px 1fr;
+            gap: 16px;
+        }
+        @media (max-width: 1000px) { .tactics-layout { grid-template-columns: 1fr; } }
+
+        /* Sân cỏ 2D */
+        .pitch-board {
+            background: var(--pitch-bg);
+            border: 3px solid rgba(255,255,255,0.7);
+            border-radius: 18px;
+            min-height: 600px;
+            position: relative;
+            padding: 20px 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.5), 0 10px 30px rgba(0,0,0,0.6);
+            overflow: hidden;
+        }
+
+        /* Vạch kẻ sân cỏ */
+        .p-line-center {
+            position: absolute;
+            top: 50%; left: 0; right: 0;
+            height: 2px;
+            background: rgba(255,255,255,0.5);
+        }
+        .p-circle-center {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 100px; height: 100px;
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .p-box-penalty {
+            position: absolute;
+            bottom: 0; left: 50%;
+            width: 240px; height: 110px;
+            border: 2px solid rgba(255,255,255,0.5);
+            border-bottom: none;
+            transform: translateX(-50%);
+        }
+        .p-box-top {
+            position: absolute;
+            top: 0; left: 50%;
+            width: 240px; height: 110px;
+            border: 2px solid rgba(255,255,255,0.5);
+            border-top: none;
+            transform: translateX(-50%);
+        }
+
+        /* Hàng vị trí trên sân */
+        .pitch-tier {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            position: relative;
+            z-index: 5;
+            margin: 6px 0;
+        }
+
+        /* Thẻ vị trí cầu thủ trên sân */
+        .pitch-slot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 80px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pitch-slot:hover { transform: scale(1.08); }
+
+        .slot-token {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #1e293b;
+            border: 2.5px solid #64748b;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: #fff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            transition: all 0.2s;
+            position: relative;
+        }
+        .slot-token.filled {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            border-color: var(--gold);
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+        }
+        .slot-token.gk.filled {
+            background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+            border-color: #fef08a;
+        }
+
+        .slot-name {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #fff;
+            background: rgba(15, 23, 42, 0.85);
+            padding: 2px 6px;
+            border-radius: 6px;
+            margin-top: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 78px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+
+        /* ===== DANH SÁCH CẦU THỦ BÊN PHẢI ===== */
+        .player-pool-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            height: 600px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+
+        /* Thanh Lọc Vị Trí Tabs */
+        .filter-tabs {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            margin-bottom: 12px;
+            padding-bottom: 4px;
+        }
+        .tab-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: var(--text-muted);
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover { background: #334155; color: #fff; }
+        .tab-btn.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+            box-shadow: 0 2px 10px rgba(16, 185, 129, 0.3);
+        }
+
+        /* Tìm kiếm & Sắp xếp */
+        .pool-toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .search-input {
+            flex: 1;
+            background: #0b1120;
+            border: 1px solid #334155;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            outline: none;
+        }
+        .sort-select {
+            background: #0b1120;
+            border: 1px solid #334155;
+            color: #fff;
+            padding: 8px 10px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        /* Danh sách thẻ cầu thủ cuộn */
+        .player-list-scroll {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-right: 4px;
+        }
+
+        /* Thẻ cầu thủ 1-Click */
+        .player-row {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1.5px solid #1e293b;
+            border-radius: 12px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .player-row:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--accent);
+            transform: translateX(3px);
+        }
+        .player-row.selected {
+            background: rgba(16, 185, 129, 0.12);
+            border-color: var(--primary);
+            box-shadow: 0 2px 12px rgba(16, 185, 129, 0.2);
+        }
+
+        .row-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .pos-tag {
+            font-weight: 800;
+            font-size: 0.78rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+            min-width: 42px;
+            text-align: center;
+        }
+        .pos-tag.gk { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }
+        .pos-tag.def { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid #3b82f6; }
+        .pos-tag.mid { background: rgba(16, 185, 129, 0.2); color: #4ade80; border: 1px solid #10b981; }
+        .pos-tag.att { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
+
+        .player-name-box .name { font-weight: 700; font-size: 0.95rem; color: #fff; }
+        .player-name-box .stats-preview { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+        .row-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .stamina-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            width: 60px;
+        }
+        .stamina-val { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; margin-bottom: 2px; }
+        .stamina-bar { width: 100%; height: 5px; background: #1e293b; border-radius: 3px; overflow: hidden; }
+        .stamina-fill { height: 100%; background: #4ade80; border-radius: 3px; }
+
+        .ovr-box {
+            font-size: 1.25rem;
+            font-weight: 900;
+            color: var(--gold);
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .check-indicator {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid #475569;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            color: transparent;
+            transition: all 0.2s;
+        }
+        .player-row.selected .check-indicator {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- FORM SUBMIT ẨN GỬI VỀ FLASK KHI BẤM LƯU -->
+    <form id="lineupForm" method="POST" action="{{ url_for('select_xi') }}">
+        <input type="hidden" name="formation" id="hiddenFormation" value="{{ team.formation or '4-3-3' }}">
+
+        <!-- 1. HEADER & CÔNG CỤ -->
+        <div class="page-header">
+            <div class="header-title">
+                <h1>📋 Sắp Xếp Đội Hình Ra Sân</h1>
+                <p>Chọn 11 cầu thủ đá chính cho trận đấu tiếp theo của CLB {{ team.name }}.</p>
+            </div>
+
+            <div class="header-actions">
+                <!-- Chọn sơ đồ -->
+                <select class="formation-picker" id="formationSelect" onchange="onFormationChange(this.value)">
+                    <option value="4-3-3" {% if team.formation == '4-3-3' %}selected{% endif %}>4-3-3 (Tấn công cánh)</option>
+                    <option value="4-2-3-1" {% if team.formation == '4-2-3-1' %}selected{% endif %}>4-2-3-1 (Kiểm soát trung lộ)</option>
+                    <option value="5-3-2" {% if team.formation == '5-3-2' %}selected{% endif %}>5-3-2 (Phòng ngự phản công)</option>
+                </select>
+
+                <!-- Nút Tự động sắp xếp -->
+                <button type="button" class="btn btn-auto" onclick="triggerAutoSelect()">
+                    ⚡ Tự động chọn tối ưu
+                </button>
+
+                <!-- Bộ đếm -->
+                <div class="selection-counter">
+                    Đã chọn: <span class="counter-badge" id="selectedCounter">0 / 11</span>
+                </div>
+
+                <!-- Nút Lưu -->
+                <button type="submit" class="btn btn-save" id="saveBtn" disabled>
+                    💾 Lưu Đội Hình
+                </button>
+
+                <a href="{{ url_for('dashboard') }}" class="btn btn-back">⬅️ Quay lại</a>
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="alert-error">⚠️ {{ error }}</div>
+        {% endif %}
+
+        <!-- Checkbox ẩn gửi id của các cầu thủ được chọn về backend -->
+        <div id="hiddenInputs">
+            {% for p in players %}
+            <input type="checkbox" name="starting" value="{{ p.id }}" id="chk_{{ p.id }}" {% if p.is_starting %}checked{% endif %} style="display: none;">
+            {% endfor %}
+        </div>
+    </form>
+
+    <!-- 2. BỐ CỤC CHÍNH -->
+    <div class="tactics-layout">
+
+        <!-- CỘT TRÁI: SÂN BÓNG CHIẾN THUẬT 2D -->
+        <div class="pitch-board">
+            <div class="p-line-center"></div>
+            <div class="p-circle-center"></div>
+            <div class="p-box-top"></div>
+            <div class="p-box-penalty"></div>
+
+            <!-- Tầng Tiền đạo (Attacking Line) -->
+            <div class="pitch-tier" id="tierAttack"></div>
+
+            <!-- Tầng Tiền vệ (Midfield Line) -->
+            <div class="pitch-tier" id="tierMidfield"></div>
+
+            <!-- Tầng Hậu vệ (Defensive Line) -->
+            <div class="pitch-tier" id="tierDefense"></div>
+
+            <!-- Tầng Thủ môn (Goalkeeper) -->
+            <div class="pitch-tier" id="tierGoalkeeper"></div>
+        </div>
+
+        <!-- CỘT PHẢI: BỘ LỌC VÀ DANH SÁCH CẦU THỦ -->
+        <div class="player-pool-card">
+            <!-- Tabs Lọc Tuyến Vị Trí -->
+            <div class="filter-tabs">
+                <button type="button" class="tab-btn active" onclick="filterPosition('ALL', this)">Tất cả ({{ players|length }})</button>
+                <button type="button" class="tab-btn" onclick="filterPosition('GK', this)">🧤 GK (Thủ môn)</button>
+                <button type="button" class="tab-btn" onclick="filterPosition('DEF', this)">🛡️ Hậu vệ (DEF)</button>
+                <button type="button" class="tab-btn" onclick="filterPosition('MID', this)">⚙️ Tiền vệ (MID)</button>
+                <button type="button" class="tab-btn" onclick="filterPosition('ATT', this)">⚡ Tiền đạo (ATT)</button>
+            </div>
+
+            <!-- Thanh Tìm Kiếm & Sắp Xếp -->
+            <div class="pool-toolbar">
+                <input type="text" class="search-input" id="searchInput" placeholder="🔍 Tìm tên cầu thủ..." oninput="filterPlayers()">
+                <select class="sort-select" id="sortSelect" onchange="sortPlayers(this.value)">
+                    <option value="ovr-desc">OVR: Cao ➔ Thấp</option>
+                    <option value="stamina-desc">Thể lực: Khỏe nhất</option>
+                    <option value="name-asc">Tên: A ➔ Z</option>
+                </select>
+            </div>
+
+            <!-- Danh Sách Cầu Thủ 1-Click -->
+            <div class="player-list-scroll" id="playerListContainer">
+                {% for p in players %}
+                <div class="player-row {% if p.is_starting %}selected{% endif %}"
+                     id="row_{{ p.id }}"
+                     data-id="{{ p.id }}"
+                     data-name="{{ p.name }}"
+                     data-pos="{{ p.position }}"
+                     data-ovr="{{ p.overall }}"
+                     data-stamina="{{ p.stamina }}"
+                     onclick="togglePlayer('{{ p.id }}')">
+
+                    <div class="row-left">
+                        <!-- Tag vị trí theo màu -->
+                        {% set pos_upper = p.position|upper %}
+                        {% if pos_upper == 'GK' %}
+                            <span class="pos-tag gk">GK</span>
+                        {% elif pos_upper in ['CB', 'LB', 'RB', 'LWB', 'RWB'] %}
+                            <span class="pos-tag def">{{ p.position }}</span>
+                        {% elif pos_upper in ['CM', 'CDM', 'CAM', 'LM', 'RM'] %}
+                            <span class="pos-tag mid">{{ p.position }}</span>
+                        {% else %}
+                            <span class="pos-tag att">{{ p.position }}</span>
+                        {% endif %}
+
+                        <div class="player-name-box">
+                            <div class="name">{{ p.name }}</div>
+                            <div class="stats-preview">Công: {{ p.attack }} • Thủ: {{ p.defense }} • Tốc: {{ p.speed }}</div>
+                        </div>
+                    </div>
+
+                    <div class="row-right">
+                        <div class="stamina-wrap">
+                            <span class="stamina-val">{{ p.stamina|round|int }}%</span>
+                            <div class="stamina-bar">
+                                <div class="stamina-fill" style="width: {{ p.stamina }}%; background: {% if p.stamina < 60 %}#ef4444{% elif p.stamina < 75 %}#f59e0b{% else %}#4ade80{% endif %};"></div>
+                            </div>
+                        </div>
+
+                        <div class="ovr-box">{{ p.overall|round|int }}</div>
+                        <div class="check-indicator">✓</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- SCRIPT LOGIC ĐIỀU KHIỂN ĐỘI HÌNH TRỰC QUAN -->
+<script>
+// Dữ liệu cầu thủ nạp từ template Jinja
+const playersData = [
+    {% for p in players %}
+    {
+        id: {{ p.id }},
+        name: "{{ p.name }}",
+        pos: "{{ p.position }}",
+        ovr: {{ p.overall|round|int }},
+        stamina: {{ p.stamina|round|int }},
+        att: {{ p.attack }},
+        def: {{ p.defense }},
+        spd: {{ p.speed }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+// Cấu trúc slot trên sân theo từng sơ đồ
+const formationSlots = {
+    '4-3-3': {
+        att: ['LW', 'ST', 'RW'],
+        mid: ['CM', 'CM', 'CM'],
+        def: ['LB', 'CB', 'CB', 'RB'],
+        gk: ['GK']
+    },
+    '4-2-3-1': {
+        att: ['ST'],
+        mid: ['LW', 'CAM', 'RW', 'CDM', 'CDM'],
+        def: ['LB', 'CB', 'CB', 'RB'],
+        gk: ['GK']
+    },
+    '5-3-2': {
+        att: ['ST', 'ST'],
+        mid: ['CM', 'CM', 'CM'],
+        def: ['LWB', 'CB', 'CB', 'CB', 'RWB'],
+        gk: ['GK']
+    }
+};
+
+let currentFormation = "{{ team.formation or '4-3-3' }}";
+let selectedPlayerIds = new Set();
+let currentPosFilter = 'ALL';
+
+// Khởi tạo trạng thái đã chọn từ ban đầu
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('#hiddenInputs input[type="checkbox"]:checked').forEach(chk => {
+        selectedPlayerIds.add(parseInt(chk.value));
+    });
+    updateUI();
+});
+
+// 1. CHỌN HOẶC BỎ CHỌN CẦU THỦ KHI BẤM VÀO THẺ
+function togglePlayer(id) {
+    id = parseInt(id);
+    const chk = document.getElementById('chk_' + id);
+
+    if (selectedPlayerIds.has(id)) {
+        selectedPlayerIds.delete(id);
+        if (chk) chk.checked = false;
+    } else {
+        if (selectedPlayerIds.size >= 11) {
+            alert("Đội hình chính chỉ được chọn tối đa 11 cầu thủ! Hãy bỏ bớt 1 cầu thủ trước.");
+            return;
+        }
+        selectedPlayerIds.add(id);
+        if (chk) chk.checked = true;
+    }
+    updateUI();
+}
+
+// 2. CẬP NHẬT GIAO DIỆN (SÂN CỎ, BỘ ĐẾM, CHECKBOX)
+function updateUI() {
+    const count = selectedPlayerIds.size;
+    const counterEl = document.getElementById('selectedCounter');
+    const saveBtn = document.getElementById('saveBtn');
+
+    counterEl.textContent = `${count} / 11`;
+    if (count === 11) {
+        counterEl.className = 'counter-badge ready';
+        saveBtn.disabled = false;
+    } else {
+        counterEl.className = 'counter-badge';
+        saveBtn.disabled = true;
+    }
+
+    // Cập nhật trạng thái thẻ ở cột phải
+    document.querySelectorAll('.player-row').forEach(row => {
+        const pid = parseInt(row.getAttribute('data-id'));
+        if (selectedPlayerIds.has(pid)) {
+            row.classList.add('selected');
+        } else {
+            row.classList.remove('selected');
+        }
+    });
+
+    // Vẽ lại các vị trí trên sân cỏ 2D
+    renderPitchSlots();
+}
+
+// 3. VẼ VỊ TRÍ CẦU THỦ TRÊN SÂN CỎ 2D
+function renderPitchSlots() {
+    const layout = formationSlots[currentFormation] || formationSlots['4-3-3'];
+    const selectedPlayers = playersData.filter(p => selectedPlayerIds.has(p.id));
+
+    // Phân loại cầu thủ đã chọn để gán vào vị trí sân
+    const unassigned = [...selectedPlayers];
+
+    function createSlotHTML(role) {
+        // Tìm cầu thủ phù hợp nhất đã được chọn cho vị trí này
+        let matchedIndex = unassigned.findIndex(p => p.pos.toUpperCase() === role.toUpperCase());
+        if (matchedIndex === -1 && unassigned.length > 0) {
+            matchedIndex = 0; // Nếu không đúng vị trí sở trường thì lấy người bất kỳ còn lại
+        }
+
+        let p = null;
+        if (matchedIndex !== -1) {
+            p = unassigned.splice(matchedIndex, 1)[0];
+        }
+
+        const isFilled = p !== null;
+        const isGK = role.toUpperCase() === 'GK';
+
+        return `
+            <div class="pitch-slot" onclick="${p ? `togglePlayer(${p.id})` : ''}" title="${p ? 'Bấm để bỏ chọn ' + p.name : 'Vị trí: ' + role}">
+                <div class="slot-token ${isFilled ? 'filled' : ''} ${isGK ? 'gk' : ''}">
+                    ${isFilled ? p.ovr : role}
+                </div>
+                <div class="slot-name">${isFilled ? p.name.split(' ').pop() : role}</div>
+            </div>
+        `;
+    }
+
+    document.getElementById('tierAttack').innerHTML = layout.att.map(createSlotHTML).join('');
+    document.getElementById('tierMidfield').innerHTML = layout.mid.map(createSlotHTML).join('');
+    document.getElementById('tierDefense').innerHTML = layout.def.map(createSlotHTML).join('');
+    document.getElementById('tierGoalkeeper').innerHTML = layout.gk.map(createSlotHTML).join('');
+}
+
+// 4. KHI ĐỔI SƠ ĐỒ CHIẾN THUẬT
+function onFormationChange(newForm) {
+    currentFormation = newForm;
+    document.getElementById('hiddenFormation').value = newForm;
+    renderPitchSlots();
+}
+
+// 5. TỰ ĐỘNG CHỌN ĐỘI HÌNH TỐI ƯU (AUTO-SELECT XI)
+function triggerAutoSelect() {
+    fetch('/auto_select_xi_api', { method: 'POST' })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success && data.selected) {
+            selectedPlayerIds.clear();
+            document.querySelectorAll('#hiddenInputs input[type="checkbox"]').forEach(chk => {
+                chk.checked = false;
+            });
+
+            data.selected.forEach(id => {
+                selectedPlayerIds.add(id);
+                const chk = document.getElementById('chk_' + id);
+                if (chk) chk.checked = true;
+            });
+
+            updateUI();
+        } else {
+            // Dự phòng tự động chọn theo OVR tại client
+            clientSideAutoSelect();
+        }
+    })
+    .catch(() => {
+        clientSideAutoSelect();
+    });
+}
+
+function clientSideAutoSelect() {
+    const sorted = [...playersData].sort((a, b) => b.ovr - a.ovr);
+    selectedPlayerIds.clear();
+    document.querySelectorAll('#hiddenInputs input[type="checkbox"]').forEach(chk => {
+        chk.checked = false;
+    });
+
+    sorted.slice(0, 11).forEach(p => {
+        selectedPlayerIds.add(p.id);
+        const chk = document.getElementById('chk_' + p.id);
+        if (chk) chk.checked = true;
+    });
+    updateUI();
+}
+
+// 6. BỘ LỌC VỊ TRÍ (ALL, GK, DEF, MID, ATT)
+function filterPosition(type, btn) {
+    currentPosFilter = type;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filterPlayers();
+}
+
+function filterPlayers() {
+    const searchVal = document.getElementById('searchInput').value.toLowerCase().trim();
+
+    document.querySelectorAll('.player-row').forEach(row => {
+        const pos = row.getAttribute('data-pos').toUpperCase();
+        const name = row.getAttribute('data-name').toLowerCase();
+
+        let matchPos = true;
+        if (currentPosFilter === 'GK') matchPos = (pos === 'GK');
+        else if (currentPosFilter === 'DEF') matchPos = ['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(pos);
+        else if (currentPosFilter === 'MID') matchPos = ['CM', 'CDM', 'CAM', 'LM', 'RM'].includes(pos);
+        else if (currentPosFilter === 'ATT') matchPos = ['ST', 'LW', 'RW'].includes(pos);
+
+        const matchSearch = name.includes(searchVal);
+
+        if (matchPos && matchSearch) {
+            row.style.display = 'flex';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+// 7. SẮP XẾP CẦU THỦ
+function sortPlayers(criteria) {
+    const container = document.getElementById('playerListContainer');
+    const rows = Array.from(container.children);
+
+    rows.sort((a, b) => {
+        if (criteria === 'ovr-desc') {
+            return parseFloat(b.getAttribute('data-ovr')) - parseFloat(a.getAttribute('data-ovr'));
+        } else if (criteria === 'stamina-desc') {
+            return parseFloat(b.getAttribute('data-stamina')) - parseFloat(a.getAttribute('data-stamina'));
+        } else if (criteria === 'name-asc') {
+            return a.getAttribute('data-name').localeCompare(b.getAttribute('data-name'));
+        }
+        return 0;
+    });
+
+    rows.forEach(r => container.appendChild(r));
+}
+</script>
+
+</body>
+</html>

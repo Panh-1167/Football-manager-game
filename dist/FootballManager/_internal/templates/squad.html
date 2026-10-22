@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đội Của Tôi - FC Mobile - {{ club.name }}</title>
+    <style>
+        :root {
+            --bg-dark: #030712;
+            --panel-bg: rgba(10, 18, 36, 0.94);
+            --panel-border: rgba(56, 189, 248, 0.35);
+            --primary: #10b981;
+            --accent: #38bdf8;
+            --accent-cyan: #00f2fe;
+            --gold: #f59e0b;
+            --gold-glow: rgba(245, 158, 11, 0.5);
+            --danger: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        body {
+            background: #020612;
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow: hidden;
+            user-select: none;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Tùy chỉnh vị trí thanh âm nhạc không bị đè vào bảng bên trái */
+        #fifa-player-widget {
+            top: 10px !important;
+            right: 170px !important;
+            bottom: auto !important;
+            left: auto !important;
+        }
+
+        /* ==================== TOP NAVIGATION BAR ==================== */
+        .fc-header-bar {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            background: rgba(6, 12, 26, 0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+            z-index: 100;
+            position: relative;
+        }
+        .fc-header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .fc-back-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(30, 41, 59, 0.85);
+            border: 1.5px solid #38bdf8;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .fc-back-btn:hover { background: #0284c7; transform: scale(1.06); }
+
+        .fc-screen-title {
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .fc-header-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .fc-top-icon-btn {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #cbd5e1;
+            font-size: 1.15rem;
+            text-decoration: none;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .fc-top-icon-btn:hover { background: #1e293b; color: #fff; border-color: #38bdf8; }
+        .notif-dot {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 8px;
+            height: 8px;
+            background: #ef4444;
+            border-radius: 50%;
+            border: 1.5px solid #000;
+        }
+
+        /* ==================== MAIN VIEWPORT (3D PITCH & STADIUM) ==================== */
+        .fc-viewport {
+            flex: 1;
+            position: relative;
+            display: flex;
+            background: radial-gradient(circle at 50% 15%, #0d1e3d 0%, #030712 90%);
+            overflow: hidden;
+        }
+
+        /* 3D SOCCER PITCH WITH CRISP TURF STRIPES & WHITE FIELD LINES */
+        .pitch-3d-board {
+            position: absolute;
+            inset: 0;
+            left: 310px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: 
+                /* Grass turf mowing stripes (Lush light & dark green stripes) */
+                repeating-linear-gradient(
+                    to bottom,
+                    #15803d 0px,
+                    #15803d 42px,
+                    #166534 42px,
+                    #166534 84px
+                );
+            box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.8), 0 0 50px rgba(0, 0, 0, 0.9);
+        }
+
+        /* Sân cỏ họa tiết & Vạch kẻ sân thi đấu */
+        .pitch-lines-svg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            opacity: 0.75;
+        }
+
+        /* Đèn sân vận động chiếu sáng ban đêm */
+        .stadium-lighting-ambient {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 50% 45%, rgba(56, 189, 248, 0.08) 0%, rgba(0, 0, 0, 0.6) 85%);
+            pointer-events: none;
+        }
+
+        /* ==================== LEFT CONTROL PANEL ==================== */
+        .fc-left-dock {
+            width: 310px;
+            padding: 14px 14px;
+            z-index: 30;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: auto;
+            background: rgba(4, 8, 20, 0.85);
+            backdrop-filter: blur(14px);
+            border-right: 1px solid rgba(56, 189, 248, 0.2);
+            height: calc(100vh - 60px);
+            overflow-y: auto;
+        }
+        .fc-left-dock::-webkit-scrollbar { width: 4px; }
+        .fc-left-dock::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+
+        .fc-team-card-panel {
+            background: var(--panel-bg);
+            border: 1.5px solid var(--panel-border);
+            border-radius: 16px;
+            padding: 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), inset 0 0 15px rgba(56, 189, 248, 0.12);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .fc-dropdown-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        .fc-dropdown-title-row span { font-size: 0.95rem; font-weight: 800; color: #fff; }
+
+        .fc-crest-ovr-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 6px;
+        }
+        .fc-club-rooster-logo {
+            font-size: 2.5rem;
+            filter: drop-shadow(0 0 10px rgba(253, 224, 71, 0.5));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .fc-club-rooster-logo span { font-size: 0.65rem; font-weight: 900; color: #cbd5e1; letter-spacing: 1px; }
+
+        /* RED/GOLD HEXAGON OVR BADGE */
+        .fc-ovr-shield-badge {
+            width: 76px;
+            height: 80px;
+            background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 40%, #450a0a 100%);
+            border: 2px solid #fde047;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 18px rgba(239, 68, 68, 0.6);
+        }
+        .fc-ovr-shield-label { font-size: 0.65rem; font-weight: 900; color: #fef08a; letter-spacing: 0.5px; }
+        .fc-ovr-shield-val { font-size: 1.9rem; font-weight: 900; color: #fff; line-height: 1; text-shadow: 0 0 6px #000; }
+
+        .fc-team-value-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.45);
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: #fde047;
+        }
+
+        .fc-trophy-badges-row {
+            display: flex;
+            justify-content: space-around;
+            padding: 2px 0;
+        }
+        .fc-honor-badge {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border: 1.5px solid #fbbf24;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+        }
+
+        .fc-formation-indicator {
+            text-align: center;
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: #38bdf8;
+            background: rgba(2, 132, 199, 0.15);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 6px 12px;
+            border-radius: 8px;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+        }
+        .fc-formation-indicator:hover { background: rgba(2, 132, 199, 0.3); }
+
+        /* 4 NEON ACTION BUTTONS */
+        .fc-actions-column {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .fc-neon-btn {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.92) 0%, rgba(30, 41, 59, 0.92) 100%);
+            border: 1.5px solid #38bdf8;
+            color: #fff;
+            padding: 9px 14px;
+            border-radius: 12px;
+            font-weight: 800;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 0 8px rgba(56, 189, 248, 0.2);
+            text-transform: uppercase;
+        }
+        .fc-neon-btn:hover {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            transform: translateX(4px);
+            box-shadow: 0 0 16px rgba(56, 189, 248, 0.6);
+        }
+        .fc-neon-btn.active {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-color: #34d399;
+            box-shadow: 0 0 16px rgba(16, 185, 129, 0.6);
+        }
+
+        /* ==================== THE PITCH & 11 STARTING PLAYERS ==================== */
+        .fc-pitch-area {
+            position: absolute;
+            inset: 0;
+            left: 310px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 16px 36px 105px 36px;
+            z-index: 20;
+        }
+
+        .pitch-row {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            width: 100%;
+            position: relative;
+        }
+
+        /* FC MOBILE AUTHENTIC ON-PITCH CARD */
+        .pitch-card-unit {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.25s ease;
+            position: relative;
+        }
+        .pitch-card-unit:hover {
+            transform: translateY(-8px) scale(1.08);
+            z-index: 50;
+            filter: drop-shadow(0 14px 28px rgba(0, 242, 254, 0.65));
+        }
+        .pitch-card-unit.selected {
+            transform: translateY(-12px) scale(1.14);
+            filter: drop-shadow(0 0 22px #fde047) !important;
+            z-index: 60;
+        }
+
+        .pitch-card-frame {
+            width: 104px;
+            height: 144px;
+            clip-path: polygon(50% 0%, 100% 12%, 100% 86%, 50% 100%, 0% 86%, 0% 12%);
+            padding: 3.5px;
+            position: relative;
+            background: linear-gradient(135deg, #00f2fe 0%, #4facfe 35%, #000428 100%);
+            box-shadow: 0 0 16px rgba(0, 242, 254, 0.45);
+        }
+
+        .pitch-card-frame.tier-ucl {
+            background: linear-gradient(135deg, #00f2fe 0%, #38bdf8 35%, #031538 100%);
+            box-shadow: 0 0 16px rgba(0, 242, 254, 0.5);
+        }
+        .pitch-card-frame.tier-ucl .p-inner {
+            background: linear-gradient(150deg, #06173d 0%, #0a2963 50%, #020718 100%);
+            border: 1.5px solid #00f2fe;
+        }
+        .pitch-card-frame.tier-ucl .p-ovr,
+        .pitch-card-frame.tier-ucl .p-name { color: #fde047; text-shadow: 0 0 6px rgba(253, 224, 71, 0.6); }
+
+        .pitch-card-frame.tier-gold {
+            background: linear-gradient(135deg, #f59e0b 0%, #fef08a 35%, #78350f 100%);
+            box-shadow: 0 0 16px rgba(245, 158, 11, 0.45);
+        }
+        .pitch-card-frame.tier-gold .p-inner {
+            background: linear-gradient(150deg, #3d2402 0%, #78350f 50%, #190a02 100%);
+            border: 1.5px solid #fbbf24;
+        }
+        .pitch-card-frame.tier-gold .p-ovr,
+        .pitch-card-frame.tier-gold .p-name { color: #fef08a; text-shadow: 0 0 6px rgba(254, 240, 138, 0.6); }
+
+        .pitch-card-frame.tier-silver {
+            background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 35%, #334155 100%);
+        }
+        .pitch-card-frame.tier-silver .p-inner {
+            background: linear-gradient(150deg, #1e293b 0%, #334155 50%, #0f172a 100%);
+            border: 1.5px solid #cbd5e1;
+        }
+        .pitch-card-frame.tier-silver .p-ovr,
+        .pitch-card-frame.tier-silver .p-name { color: #fff; }
+
+        .p-inner {
+            width: 100%;
+            height: 100%;
+            clip-path: polygon(50% 0%, 100% 12%, 100% 86%, 50% 100%, 0% 86%, 0% 12%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            padding: 4px 3px;
+            overflow: hidden;
+        }
+
+        /* Top row */
+        .p-top-row {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            padding: 1px 4px;
+            z-index: 3;
+        }
+        .p-skill-icon { font-size: 0.7rem; color: #38bdf8; }
+        .p-ovr-pos-group { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
+        .p-ovr { font-size: 1.15rem; font-weight: 900; }
+        .p-pos { font-size: 0.65rem; font-weight: 800; color: #fff; }
+
+        /* Avatar in mini card */
+        .p-avatar-box {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            position: relative;
+            margin-top: -6px;
+        }
+        .p-avatar-img {
+            max-width: 68px;
+            max-height: 72px;
+            object-fit: contain;
+            filter: drop-shadow(0 3px 8px rgba(0,0,0,0.7));
+        }
+
+        /* Rank Badge */
+        .p-rank-badge {
+            position: absolute;
+            bottom: 18px;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: #000;
+            font-size: 0.6rem;
+            font-weight: 900;
+            padding: 1px 5px;
+            border-radius: 4px;
+            border: 1px solid #fff;
+            z-index: 5;
+        }
+
+        /* Name Ribbon */
+        .p-name-ribbon {
+            position: absolute;
+            bottom: 3px;
+            left: 2px;
+            right: 2px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 3px;
+            padding: 2px 2px;
+            z-index: 3;
+        }
+        .p-name {
+            font-size: 0.68rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+        }
+
+        /* Position Pill Underneath */
+        .pitch-pos-pill {
+            background: rgba(10, 18, 36, 0.95);
+            border: 1.5px solid rgba(255, 255, 255, 0.25);
+            color: #fff;
+            font-size: 0.72rem;
+            font-weight: 900;
+            padding: 2px 10px;
+            border-radius: 12px;
+            margin-top: 3px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.6);
+            letter-spacing: 0.5px;
+        }
+        .pitch-pos-pill.fw { border-color: #38bdf8; color: #38bdf8; }
+        .pitch-pos-pill.mf { border-color: #34d399; color: #34d399; }
+        .pitch-pos-pill.df { border-color: #f59e0b; color: #f59e0b; }
+        .pitch-pos-pill.gk { border-color: #f87171; color: #f87171; }
+
+        /* ==================== BOTTOM SUBSTITUTES DRAWER (DỰ BỊ) ==================== */
+        .fc-subs-drawer {
+            position: absolute;
+            bottom: 0;
+            left: 310px;
+            right: 0;
+            height: 98px;
+            background: rgba(6, 12, 26, 0.9);
+            backdrop-filter: blur(14px);
+            border-top: 1.5px solid rgba(56, 189, 248, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 40;
+            transition: transform 0.3s ease;
+        }
+        .fc-subs-drawer.collapsed {
+            transform: translateY(98px);
+        }
+
+        .fc-subs-cards-track {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            overflow-x: auto;
+            padding: 6px 0;
+            flex: 1;
+        }
+        .fc-subs-cards-track::-webkit-scrollbar { height: 4px; }
+        .fc-subs-cards-track::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+        .sub-mini-card {
+            width: 60px;
+            height: 84px;
+            clip-path: polygon(50% 0%, 100% 12%, 100% 86%, 50% 100%, 0% 86%, 0% 12%);
+            background: linear-gradient(135deg, #f59e0b, #78350f);
+            padding: 2.5px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+        .sub-mini-card:hover { transform: scale(1.1); filter: drop-shadow(0 0 10px #38bdf8); }
+        .sub-mini-card .s-inner {
+            width: 100%;
+            height: 100%;
+            clip-path: polygon(50% 0%, 100% 12%, 100% 86%, 50% 100%, 0% 86%, 0% 12%);
+            background: #0f172a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 2px;
+            position: relative;
+        }
+        .s-ovr { font-size: 0.82rem; font-weight: 900; color: #fde047; }
+        .s-pos { font-size: 0.58rem; font-weight: 800; color: #cbd5e1; }
+        .s-name { font-size: 0.58rem; font-weight: 800; color: #fff; max-width: 52px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+        .sub-empty-slot {
+            width: 60px;
+            height: 84px;
+            border: 1.5px dashed #475569;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 1.4rem;
+            flex-shrink: 0;
+            background: rgba(15, 23, 42, 0.4);
+            cursor: pointer;
+        }
+        .sub-empty-slot:hover { border-color: #38bdf8; color: #38bdf8; }
+
+        .fc-subs-toggle-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #cbd5e1;
+            padding-left: 18px;
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* TOGGLE SWITCH */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #334155;
+            transition: .3s;
+            border-radius: 24px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #10b981; }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* RIGHT UTILITY ICONS */
+        .fc-right-floating-dock {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 30;
+        }
+        .fc-float-btn {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1.5px solid #38bdf8;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+            transition: all 0.2s;
+        }
+        .fc-float-btn:hover { background: #0284c7; transform: scale(1.08); }
+
+        /* MODALS */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            z-index: 99999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+        }
+        .modal-backdrop.active { display: flex; }
+        .formation-modal-box {
+            background: #0d172e;
+            border: 1.5px solid #38bdf8;
+            border-radius: 18px;
+            padding: 24px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+        }
+        .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 18px 0; }
+        .form-opt-btn {
+            background: #1e293b;
+            border: 1.5px solid #334155;
+            color: #fff;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .form-opt-btn:hover, .form-opt-btn.active {
+            background: #0284c7;
+            border-color: #38bdf8;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- TOP BAR -->
+    <div class="fc-header-bar">
+        <div class="fc-header-left">
+            <a href="{{ url_for('dashboard') }}" class="fc-back-btn" title="Quay lại">❮</a>
+            <div class="fc-screen-title">
+                <span>ĐỘI CỦA TÔI</span>
+            </div>
+        </div>
+
+        <div class="fc-header-right">
+            <div class="fc-top-icon-btn" title="Thông báo">
+                ⚽<div class="notif-dot"></div>
+            </div>
+            <a href="{{ url_for('transfer_market') }}" class="fc-top-icon-btn" title="Chuyển Nhượng">🛒</a>
+            <a href="{{ url_for('dashboard') }}" class="fc-top-icon-btn" title="Trang Chủ">🏠</a>
+        </div>
+    </div>
+
+    <!-- MAIN VIEWPORT (3D SOCCER PITCH) -->
+    <div class="fc-viewport">
+        
+        <!-- PITCH BOARD WITH TURF STRIPES & CLEAN LINES -->
+        <div class="pitch-3d-board">
+            <svg class="pitch-lines-svg" viewBox="0 0 1000 650" preserveAspectRatio="none">
+                <!-- Halfway line -->
+                <line x1="0" y1="325" x2="1000" y2="325" stroke="#ffffff" stroke-width="3"/>
+                <!-- Center circle -->
+                <circle cx="500" cy="325" r="90" fill="none" stroke="#ffffff" stroke-width="3"/>
+                <circle cx="500" cy="325" r="4" fill="#ffffff"/>
+                <!-- Top penalty area -->
+                <rect x="340" y="0" width="320" height="110" fill="none" stroke="#ffffff" stroke-width="3"/>
+                <!-- Top 6-yard box -->
+                <rect x="420" y="0" width="160" height="45" fill="none" stroke="#ffffff" stroke-width="3"/>
+                <!-- Bottom penalty area -->
+                <rect x="340" y="540" width="320" height="110" fill="none" stroke="#ffffff" stroke-width="3"/>
+                <!-- Bottom 6-yard box -->
+                <rect x="420" y="605" width="160" height="45" fill="none" stroke="#ffffff" stroke-width="3"/>
+                <!-- Bottom penalty spot -->
+                <circle cx="500" cy="575" r="4" fill="#ffffff"/>
+                <!-- Corner arcs -->
+                <path d="M 0,25 A 25,25 0 0,0 25,0" fill="none" stroke="#ffffff" stroke-width="3"/>
+                <path d="M 975,0 A 25,25 0 0,0 1000,25" fill="none" stroke="#ffffff" stroke-width="3"/>
+                <path d="M 0,625 A 25,25 0 0,1 25,650" fill="none" stroke="#ffffff" stroke-width="3"/>
+                <path d="M 975,650 A 25,25 0 0,1 1000,625" fill="none" stroke="#ffffff" stroke-width="3"/>
+            </svg>
+            <div class="stadium-lighting-ambient"></div>
+        </div>
+
+        <!-- LEFT CONTROL PANEL -->
+        <div class="fc-left-dock">
+            <div class="fc-team-card-panel">
+                
+                <div class="fc-dropdown-title-row" onclick="openFormationModal()">
+                    <span>ĐỘI CỦA TÔI</span>
+                    <span style="color:#38bdf8;">▼</span>
+                </div>
+
+                <div class="fc-crest-ovr-row">
+                    <div class="fc-club-rooster-logo">
+                        🐓
+                        <span>{{ club.name }}</span>
+                    </div>
+
+                    <div class="fc-ovr-shield-badge">
+                        <span class="fc-ovr-shield-label">OVR</span>
+                        <span class="fc-ovr-shield-val" id="teamOvrDisp">{{ team_ovr }}</span>
+                    </div>
+                </div>
+
+                <div class="fc-team-value-row">
+                    <span>🪙</span>
+                    <span id="teamValDisp">{{ "{:,.0f}".format(team_value) }} $</span>
+                </div>
+
+                <div class="fc-trophy-badges-row">
+                    <div class="fc-honor-badge" title="Vô Địch">👑</div>
+                    <div class="fc-honor-badge" title="FC Club">🛡️</div>
+                    <div class="fc-honor-badge" title="Hạng 1">🏆</div>
+                </div>
+
+                <div class="fc-formation-indicator" id="formationIndicator" onclick="openFormationModal()">
+                    ↔ {{ club.formation }} 1 AM
+                </div>
+
+                <!-- 4 NEON ACTION BUTTONS -->
+                <div class="fc-actions-column">
+                    <button class="fc-neon-btn" onclick="openTacticsModal()">
+                        <span>📐</span> ĐẤU PHÁP
+                    </button>
+                    <button class="fc-neon-btn" onclick="doAutoBuild()">
+                        <span>🔄</span> TỰ ĐỘNG XÂY DỰNG
+                    </button>
+                    <button class="fc-neon-btn" id="btnToggleSubs" onclick="toggleSubsDrawer()">
+                        <span>👥</span> DỰ BỊ
+                    </button>
+                    <button class="fc-neon-btn" onclick="openFormationModal()">
+                        <span>⚙️</span> CHỈNH SỬA ĐỘI HÌNH
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 3D PITCH & 11 STARTING PLAYERS -->
+        <div class="fc-pitch-area" id="pitchArea">
+            
+            <!-- ROW 1: FORWARDS (LW, ST, RW) -->
+            <div class="pitch-row" id="rowForwards"></div>
+
+            <!-- ROW 2: MIDFIELDERS (CM, CAM, CM) -->
+            <div class="pitch-row" id="rowMidfielders"></div>
+
+            <!-- ROW 3: DEFENDERS (LB, CB, CB, RB) -->
+            <div class="pitch-row" id="rowDefenders"></div>
+
+            <!-- ROW 4: GOALKEEPER (GK) -->
+            <div class="pitch-row" id="rowGoalkeeper"></div>
+
+        </div>
+
+        <!-- RIGHT UTILITY ICONS -->
+        <div class="fc-right-floating-dock">
+            <button class="fc-float-btn" title="Xem hồ sơ chi tiết" onclick="window.location.href='/player/{{ starting_players[0].id if starting_players else 1 }}'">📱</button>
+            <button class="fc-float-btn" title="Đội hình dự bị" onclick="toggleSubsDrawer()">👥</button>
+        </div>
+
+        <!-- BOTTOM SUBSTITUTES DRAWER -->
+        <div class="fc-subs-drawer" id="subsDrawer">
+            <div class="fc-subs-cards-track" id="subsTrack"></div>
+
+            <div class="fc-subs-toggle-wrap">
+                <span>Tự Động Thay Cầu Thủ Dự Bị ℹ️</span>
+                <label class="switch">
+                    <input type="checkbox" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- FORMATION SELECTOR MODAL -->
+    <div class="modal-backdrop" id="formationModal">
+        <div class="formation-modal-box">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:10px;">
+                <h3 style="color:#38bdf8;">⚙️ Chọn Sơ Đồ Chiến Thuật</h3>
+                <button class="fc-back-btn" style="width:34px; height:34px; font-size:1rem;" onclick="closeFormationModal()">✕</button>
+            </div>
+            <div class="form-grid">
+                <button class="form-opt-btn" onclick="selectFormation('4-3-3')">4-3-3 ATTACK</button>
+                <button class="form-opt-btn" onclick="selectFormation('4-2-3-1')">4-2-3-1</button>
+                <button class="form-opt-btn" onclick="selectFormation('5-3-2')">5-3-2</button>
+                <button class="form-opt-btn" onclick="selectFormation('4-4-2')">4-4-2</button>
+                <button class="form-opt-btn" onclick="selectFormation('3-5-2')">3-5-2</button>
+                <button class="form-opt-btn" onclick="selectFormation('4-1-2-1-2')">4-1-2-1-2</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TACTICS MODAL -->
+    <div class="modal-backdrop" id="tacticsModal">
+        <div class="formation-modal-box">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:10px;">
+                <h3 style="color:#34d399;">📐 Đấu Pháp Chiến Thuật</h3>
+                <button class="fc-back-btn" style="width:34px; height:34px; font-size:1rem;" onclick="closeTacticsModal()">✕</button>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-top:16px;">
+                <button class="fc-neon-btn" onclick="setTactic('Tấn công rực lửa')">⚔️ Tấn công tổng lực</button>
+                <button class="fc-neon-btn" onclick="setTactic('Cân bằng')">⚖️ Cân bằng & Kiểm soát</button>
+                <button class="fc-neon-btn" onclick="setTactic('Phòng ngự phản công')">🛡️ Phòng ngự chặt phản công nhanh</button>
+                <button class="fc-neon-btn" onclick="setTactic('Gegenpressing')">⚡ Áp sát tầm cao (Gegenpressing)</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+let STARTING_PLAYERS = {{ starting_players|tojson }};
+let SUB_PLAYERS = {{ sub_players|tojson }};
+let CURRENT_FORMATION = "{{ club.formation }}";
+let selectedPitchPlayerId = null;
+
+// Render Formation on Pitch
+function renderPitch() {
+    const rowFw = document.getElementById('rowForwards');
+    const rowMf = document.getElementById('rowMidfielders');
+    const rowDf = document.getElementById('rowDefenders');
+    const rowGk = document.getElementById('rowGoalkeeper');
+
+    rowFw.innerHTML = '';
+    rowMf.innerHTML = '';
+    rowDf.innerHTML = '';
+    rowGk.innerHTML = '';
+
+    // Split starting players into roles
+    let fws = STARTING_PLAYERS.filter(p => ['ST', 'CF', 'LW', 'RW'].includes(p.position));
+    let mfs = STARTING_PLAYERS.filter(p => ['CAM', 'CM', 'CDM', 'LM', 'RM'].includes(p.position));
+    let dfs = STARTING_PLAYERS.filter(p => ['CB', 'LB', 'RB', 'LWB', 'RWB'].includes(p.position));
+    let gks = STARTING_PLAYERS.filter(p => p.position === 'GK');
+
+    if (gks.length === 0 && STARTING_PLAYERS.length > 0) gks.push(STARTING_PLAYERS[STARTING_PLAYERS.length - 1]);
+    
+    // Render FW
+    fws.forEach(p => rowFw.appendChild(createPitchCardElement(p, 'fw')));
+    // Render MF
+    mfs.forEach(p => rowMf.appendChild(createPitchCardElement(p, 'mf')));
+    // Render DF
+    dfs.forEach(p => rowDf.appendChild(createPitchCardElement(p, 'df')));
+    // Render GK
+    gks.forEach(p => rowGk.appendChild(createPitchCardElement(p, 'gk')));
+
+    // Render Subs Track
+    renderSubsTrack();
+}
+
+function createPitchCardElement(p, lineClass) {
+    const wrap = document.createElement('div');
+    wrap.className = `pitch-card-unit ${selectedPitchPlayerId === p.id ? 'selected' : ''}`;
+    wrap.onclick = () => onPitchCardClick(p.id);
+    wrap.ondblclick = () => window.location.href = `/player/${p.id}`;
+
+    let avatarSrc = '/static/images/players/default_avatar.png';
+    let pNameLower = p.name.toLowerCase();
+    if (pNameLower.includes('doku')) avatarSrc = '/static/images/cards/fc_mobile_doku.png';
+    else if (pNameLower.includes('quang')) avatarSrc = '/static/images/players/quanghai.png';
+    else if (pNameLower.includes('haaland')) avatarSrc = '/static/images/players/haaland.png';
+    else if (pNameLower.includes('mbappe')) avatarSrc = '/static/images/players/mbappe.png';
+
+    wrap.innerHTML = `
+        <div class="pitch-card-frame ${p.tier}">
+            <div class="p-inner">
+                <div class="p-top-row">
+                    <div class="p-skill-icon">⚡</div>
+                    <div class="p-ovr-pos-group">
+                        <span class="p-ovr">${p.fc_ovr}</span>
+                        <span class="p-pos">${p.position}</span>
+                    </div>
+                </div>
+                <div class="p-avatar-box">
+                    <img src="${avatarSrc}" class="p-avatar-img" alt="${p.name}">
+                    <div class="p-rank-badge">★ ${p.training_level}</div>
+                </div>
+                <div class="p-name-ribbon">
+                    <span class="p-name">${p.last_name || p.name}</span>
+                </div>
+            </div>
+        </div>
+        <div class="pitch-pos-pill ${lineClass}">${p.position}</div>
+    `;
+    return wrap;
+}
+
+function renderSubsTrack() {
+    const track = document.getElementById('subsTrack');
+    track.innerHTML = '';
+    SUB_PLAYERS.forEach(p => {
+        const el = document.createElement('div');
+        el.className = 'sub-mini-card';
+        el.onclick = () => onSubCardClick(p.id);
+        el.innerHTML = `
+            <div class="s-inner">
+                <span class="s-ovr">${p.fc_ovr}</span>
+                <span class="s-pos">${p.position}</span>
+                <span class="s-name">${p.last_name || p.name}</span>
+            </div>
+        `;
+        track.appendChild(el);
+    });
+
+    // Add empty slots up to 7
+    for (let i = SUB_PLAYERS.length; i < 7; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'sub-empty-slot';
+        slot.innerHTML = '+';
+        slot.onclick = () => window.location.href = '/transfer_market';
+        track.appendChild(slot);
+    }
+}
+
+function onPitchCardClick(pId) {
+    if (selectedPitchPlayerId === pId) {
+        selectedPitchPlayerId = null;
+    } else {
+        selectedPitchPlayerId = pId;
+    }
+    renderPitch();
+}
+
+async function onSubCardClick(subId) {
+    if (selectedPitchPlayerId) {
+        try {
+            const res = await fetch('/api/swap_squad_players', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ p1_id: selectedPitchPlayerId, p2_id: subId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                STARTING_PLAYERS = data.starting_players;
+                SUB_PLAYERS = data.sub_players;
+                document.getElementById('teamOvrDisp').textContent = data.team_ovr;
+                selectedPitchPlayerId = null;
+                renderPitch();
+            }
+        } catch(e) {
+            console.error(e);
+        }
+    } else {
+        window.location.href = `/player/${subId}`;
+    }
+}
+
+async function doAutoBuild() {
+    try {
+        const res = await fetch('/api/auto_build_squad', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        if (data.success) {
+            STARTING_PLAYERS = data.starting_players;
+            SUB_PLAYERS = data.sub_players;
+            document.getElementById('teamOvrDisp').textContent = data.team_ovr;
+            selectedPitchPlayerId = null;
+            renderPitch();
+            alert(`🎉 ${data.message}`);
+        }
+    } catch(e) {
+        alert('Lỗi tự động xây dựng đội hình.');
+    }
+}
+
+function toggleSubsDrawer() {
+    const drawer = document.getElementById('subsDrawer');
+    drawer.classList.toggle('collapsed');
+    document.getElementById('btnToggleSubs').classList.toggle('active', !drawer.classList.contains('collapsed'));
+}
+
+function openFormationModal() { document.getElementById('formationModal').classList.add('active'); }
+function closeFormationModal() { document.getElementById('formationModal').classList.remove('active'); }
+
+async function selectFormation(form) {
+    closeFormationModal();
+    try {
+        const res = await fetch('/api/change_formation', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ formation: form })
+        });
+        const data = await res.json();
+        if (data.success) {
+            CURRENT_FORMATION = form;
+            STARTING_PLAYERS = data.starting_players;
+            SUB_PLAYERS = data.sub_players;
+            document.getElementById('formationIndicator').textContent = `↔ ${form} 1 AM`;
+            document.getElementById('teamOvrDisp').textContent = data.team_ovr;
+            renderPitch();
+        }
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+function openTacticsModal() { document.getElementById('tacticsModal').classList.add('active'); }
+function closeTacticsModal() { document.getElementById('tacticsModal').classList.remove('active'); }
+
+function setTactic(t) {
+    closeTacticsModal();
+    alert(`Đã áp dụng đấu pháp: ${t}!`);
+}
+
+// Initial Render
+renderPitch();
+</script>
+
+</body>
+</html>

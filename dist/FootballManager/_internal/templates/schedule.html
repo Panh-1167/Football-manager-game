@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Lịch thi đấu mùa giải</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>.fixture { display:flex; justify-content:space-between; align-items:center; gap:1rem; text-align:left; } .fixture.current { border:2px solid #00b140; } .fixture .round-label { color:#fbbf24; font-weight:bold; min-width:75px; }</style>
+</head>
+<body>
+    <div class="container">
+        <h2>📅 Lịch Thi Đấu Mùa Giải</h2>
+        <div class="info">Lịch của CLB bạn gồm 18 vòng. Vòng tiếp theo được viền xanh.</div>
+        {% for r in rounds %}
+        <div class="info fixture {% if r.current %}current{% endif %}">
+            <span class="round-label">Vòng {{ r.round }}</span>
+            <strong>{{ r.home }}</strong><span>⚽ VS ⚽</span><strong>{{ r.away }}</strong>
+            {% if r.current %}<span>▶ Sắp diễn ra</span>{% endif %}
+        </div>
+        {% endfor %}
+        <a href="{{ url_for('dashboard') }}" class="btn secondary">← Quay lại Dashboard</a>
+    </div>
+</body>
+</html>

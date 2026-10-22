@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Lưu game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container text-center">
+        <h2>💾 Sao Lưu Dữ Liệu CLB</h2>
+        {% if success %}
+        <div class="success">✅ Dữ liệu CLB đã được sao lưu thành công an toàn!</div>
+        <a href="{{ url_for('dashboard') }}" class="btn primary">← Về Dashboard</a>
+        {% else %}
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <form method="POST">
+            <div class="form-group">
+                <label>Đặt Passcode bảo mật để lưu:</label>
+                <input type="password" name="passcode" required placeholder="Nhập passcode bí mật của bạn...">
+            </div>
+            <button type="submit" class="btn primary">Lưu ngay</button>
+            <a href="{{ url_for('dashboard') }}" class="btn secondary mt-2">← Quay lại Dashboard</a>
+        </form>
+        {% endif %}
+    </div>
+</body>
+</html>

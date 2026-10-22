@@ -1,0 +1,1694 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trực tiếp: {{ match.home_team }} vs {{ match.away_team }} - Match Center Pro</title>
+    <style>
+        :root {
+            --bg-dark: #030712;
+            --panel-bg: rgba(15, 23, 42, 0.95);
+            --panel-border: rgba(255, 255, 255, 0.12);
+            --primary: #10b981;
+            --primary-glow: rgba(16, 185, 129, 0.45);
+            --accent-blue: #38bdf8;
+            --tiki-gold: #fde047;
+            --danger: #f43f5e;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --home-color: #0284c7;
+            --away-color: #e11d48;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        body {
+            background: radial-gradient(circle at 50% 0%, #0c1a38 0%, #02040a 100%);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 8px 12px;
+            overflow-x: hidden;
+        }
+        .container { max-width: 1380px; margin: 0 auto; }
+
+        /* ==================== 5-BOX DASHBOARD GRID THEO ĐÚNG HÌNH VẼ ==================== */
+        .match-dashboard-grid {
+            display: grid;
+            grid-template-columns: 2.1fr 1fr;
+            grid-template-rows: auto auto;
+            gap: 10px;
+        }
+
+        .bottom-three-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.1fr;
+            gap: 10px;
+        }
+
+        @media (max-width: 1060px) {
+            .match-dashboard-grid { grid-template-columns: 1fr; }
+            .bottom-three-grid { grid-template-columns: 1fr; }
+        }
+
+        /* CARD CHUNG CHO CÁC KHỐI */
+        .dash-card {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 14px;
+            padding: 12px 14px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+        .dash-card-header {
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: var(--accent-blue);
+            margin-bottom: 8px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid var(--panel-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* ==================== KHỐI 1: MÀN HÌNH TRẬN ĐẤU (TOP-LEFT) ==================== */
+        .pitch-viewport-box {
+            background: #01130b;
+            border: 2px solid #1e293b;
+            border-radius: 14px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
+        }
+
+        /* BẢNG TỈ SỐ TRUYỀN HÌNH (TV BROADCAST SCOREBUG) NẰM TRONG MÀN HÌNH GAME */
+        .tv-scorebug-overlay {
+            position: absolute;
+            top: 12px;
+            left: 14px;
+            z-index: 100;
+            display: flex;
+            align-items: stretch;
+            height: 32px;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.75);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            user-select: none;
+        }
+        .scorebug-home {
+            background: #dc2626;
+            color: #ffffff;
+            font-weight: 900;
+            font-size: 0.88rem;
+            padding: 0 9px;
+            display: flex;
+            align-items: center;
+        }
+        .scorebug-home-score {
+            background: #991b1b;
+            color: #ffffff;
+            font-weight: 900;
+            font-size: 1.1rem;
+            width: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .scorebug-crest {
+            background: #38003c;
+            width: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+        }
+        .scorebug-away-score {
+            background: #e2e8f0;
+            color: #0f172a;
+            font-weight: 900;
+            font-size: 1.1rem;
+            width: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .scorebug-away {
+            background: #ffffff;
+            color: #0f172a;
+            font-weight: 900;
+            font-size: 0.88rem;
+            padding: 0 9px;
+            display: flex;
+            align-items: center;
+        }
+        .scorebug-time {
+            background: #0f172a;
+            color: #fde047;
+            font-weight: 800;
+            font-size: 0.82rem;
+            padding: 0 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-variant-numeric: tabular-nums;
+            border-left: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .scorebug-injury-pill {
+            background: #eab308;
+            color: #000;
+            font-weight: 900;
+            font-size: 0.72rem;
+            padding: 0 5px;
+            display: none;
+            align-items: center;
+        }
+
+        /* BADGE CẦU THỦ CẦM BÓNG TRÊN GÓC PHẢI */
+        .tv-carrier-badge {
+            position: absolute;
+            top: 12px;
+            right: 14px;
+            z-index: 100;
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(253, 224, 71, 0.5);
+            border-radius: 20px;
+            padding: 3px 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.74rem;
+            color: #fef08a;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+        }
+
+        #pitchCanvas {
+            width: 100%;
+            height: auto;
+            display: block;
+            background: #0d381e;
+        }
+
+        /* ==================== KHỐI 2 & KHỐI 5: SƠ ĐỒ ĐỘI HÌNH (MINI TACTICAL PITCH) ==================== */
+        .formation-tactical-board {
+            background: radial-gradient(circle, #0e3b20 0%, #061e11 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            height: 380px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            padding: 10px 6px;
+        }
+        .formation-tactical-board.away-board {
+            height: 230px;
+        }
+
+        .tactical-pitch-lines {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            margin: 6px;
+            border-radius: 6px;
+            pointer-events: none;
+        }
+        .tactical-center-line {
+            position: absolute;
+            top: 50%; left: 0; right: 0;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.15);
+        }
+        .tactical-center-circle {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 50px; height: 50px;
+            margin: -25px 0 0 -25px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+        }
+
+        .lineup-row {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 2;
+            width: 100%;
+        }
+
+        .tactical-token {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            cursor: default;
+        }
+        .token-circle {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.68rem;
+            font-weight: 900;
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+            border: 1.5px solid #fff;
+        }
+        .token-circle.home { background: linear-gradient(135deg, #38bdf8 0%, #1e40af 100%); }
+        .token-circle.away { background: linear-gradient(135deg, #fb7185 0%, #9f1239 100%); }
+        .token-circle.gk { background: linear-gradient(135deg, #fde047 0%, #ca8a04 100%); color: #000; }
+        .token-circle.has-ball {
+            border-color: #fde047;
+            box-shadow: 0 0 12px #fde047;
+            transform: scale(1.15);
+        }
+
+        .token-name-tag {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #f8fafc;
+            background: rgba(15, 23, 42, 0.85);
+            padding: 1px 4px;
+            border-radius: 4px;
+            margin-top: 2px;
+            white-space: nowrap;
+            max-width: 65px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .token-stamina-bar {
+            width: 20px;
+            height: 2.5px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 2px;
+            margin-top: 1px;
+            overflow: hidden;
+        }
+        .token-stamina-fill {
+            height: 100%;
+            background: #10b981;
+            width: 100%;
+        }
+
+        /* ==================== KHỐI 3: NÚT BẤM VÀO CÁC MỤC KHÁC (BOTTOM-LEFT) ==================== */
+        .action-buttons-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            flex: 1;
+        }
+        .btn-action-tile {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #f8fafc;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-weight: 700;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            text-align: center;
+        }
+        .btn-action-tile:hover {
+            background: #334155;
+            transform: translateY(-1px);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        .btn-action-tile.active {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-color: #10b981;
+            color: #fff;
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+        .btn-action-tile.highlight {
+            background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%);
+            border-color: #818cf8;
+            color: #fff;
+        }
+
+        .speed-control-strip {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        /* ==================== KHỐI 4: THÔNG SỐ TRẬN ĐẤU (BOTTOM-CENTER) ==================== */
+        .stats-table {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            flex: 1;
+            justify-content: center;
+        }
+        .stat-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .stat-val-home { color: #38bdf8; font-weight: 900; min-width: 24px; text-align: left; }
+        .stat-val-away { color: #fb7185; font-weight: 900; min-width: 24px; text-align: right; }
+        .stat-label { color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; }
+
+        .stat-bar-container {
+            height: 4px;
+            background: #ef4444;
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            margin-top: 2px;
+        }
+        .stat-bar-fill {
+            height: 100%;
+            background: #38bdf8;
+            width: 52%;
+            transition: width 0.4s ease;
+        }
+
+        /* ==================== MODALS: KẾT QUẢ KHÁC & BXH ==================== */
+        .modal-screen {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(2, 6, 18, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-window {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 14px;
+            width: 90%;
+            max-width: 480px;
+            padding: 20px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9);
+        }
+        .modal-close-btn {
+            background: #334155;
+            color: #fff;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 700;
+            margin-top: 14px;
+            float: right;
+        }
+
+        .other-match-item {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            font-weight: 700;
+        }
+
+        .status-alert-box {
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border: 2px solid var(--primary);
+            border-radius: 16px;
+            padding: 26px 22px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 0 35px rgba(16, 185, 129, 0.35);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- ==================== CẤU TRÚC 5 KHỐI ĐÚNG NHƯ HÌNH VẼ ==================== -->
+    <div class="match-dashboard-grid">
+
+        <!-- [KHỐI 1 - TOP-LEFT]: MÀN HÌNH TRẬN ĐẤU (2D/2.5D CANVAS & TV BROADCAST SCOREBUG) -->
+        <div class="pitch-viewport-box">
+            
+            <!-- BẢNG TỈ SỐ TRUYỀN HÌNH PREMIER LEAGUE NẰM TRÊN GÓC SÂN TRẬN ĐẤU -->
+            <div class="tv-scorebug-overlay">
+                <div class="scorebug-home">{{ (match.home_team[:3] or 'HOM')|upper }}</div>
+                <div class="scorebug-home-score" id="scoreHome">{{ match.home_goals }}</div>
+                <div class="scorebug-crest">🦁</div>
+                <div class="scorebug-away-score" id="scoreAway">{{ match.away_goals }}</div>
+                <div class="scorebug-away">{{ (match.away_team[:3] or 'AWA')|upper }}</div>
+                <div class="scorebug-time">
+                    <span id="matchClock">01:15</span>
+                </div>
+                <div class="scorebug-injury-pill" id="tvInjuryBadge">+3'</div>
+            </div>
+
+            <!-- TÊN CẦU THỦ ĐANG CẦM BÓNG TRỰC TIẾP -->
+            <div class="tv-carrier-badge">
+                <span>⚽ Cầm bóng:</span>
+                <strong id="carrierHudName" style="color: #fff;">Đang tranh chấp...</strong>
+            </div>
+
+            <canvas id="pitchCanvas" width="920" height="540"></canvas>
+        </div>
+
+        <!-- [KHỐI 2 - TOP-RIGHT]: SƠ ĐỒ ĐỘI MÌNH -->
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <span>🛡️ SƠ ĐỒ ĐỘI MÌNH</span>
+                <span style="color: var(--tiki-gold); font-size: 0.74rem;">{{ match.home_formation }}</span>
+            </div>
+
+            <!-- SÂN CHIẾN THUẬT MINI ĐỘI NHÀ -->
+            <div class="formation-tactical-board" id="homeTacticalBoard">
+                <div class="tactical-pitch-lines">
+                    <div class="tactical-center-line"></div>
+                    <div class="tactical-center-circle"></div>
+                </div>
+
+                <!-- Hàng Tiền Đạo (ATT) -->
+                <div class="lineup-row" id="homeRowAtt"></div>
+                <!-- Hàng Tiền Vệ (MID) -->
+                <div class="lineup-row" id="homeRowMid"></div>
+                <!-- Hàng Hậu Vệ (DEF) -->
+                <div class="lineup-row" id="homeRowDef"></div>
+                <!-- Thủ Môn (GK) -->
+                <div class="lineup-row" id="homeRowGk"></div>
+            </div>
+        </div>
+
+        <!-- PHẦN DƯỚI GỒM 3 KHỐI: NÚT BẤM (KHỐI 3), THÔNG SỐ TĐ (KHỐI 4), SƠ ĐỒ ĐỐI THỦ (KHỐI 5) -->
+        <div class="bottom-three-grid">
+
+            <!-- [KHỐI 3 - BOTTOM-LEFT]: NÚT BẤM VÀO CÁC MỤC KHÁC -->
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <span>🎮 ĐIỀU KHIỂN & MỤC KHÁC</span>
+                    <span id="matchStatusText" style="color: var(--primary); font-size: 0.72rem;">🟢 Đang đá</span>
+                </div>
+
+                <div class="action-buttons-grid">
+                    <button class="btn-action-tile highlight" onclick="openSubModal()">
+                        🔄 Thay người (<span id="subsUsedCount">{{ match.subs_used or 0 }}</span>/3)
+                    </button>
+                    <button class="btn-action-tile" onclick="openOtherMatchesModal()">
+                        📋 KQ trận khác
+                    </button>
+                    <button class="btn-action-tile btn-tactic {% if match.tactic == 'Tan cong' %}active{% endif %}" onclick="setTactic('Tan cong')">
+                        🗡️ Tấn công
+                    </button>
+                    <button class="btn-action-tile btn-tactic {% if match.tactic == 'Can bang' or not match.tactic %}active{% endif %}" onclick="setTactic('Can bang')">
+                        ⚖️ Cân bằng
+                    </button>
+                    <button class="btn-action-tile btn-tactic {% if match.tactic == 'Phong thu' %}active{% endif %}" onclick="setTactic('Phong thu')">
+                        🛡️ Phòng thủ
+                    </button>
+                    <button class="btn-action-tile" id="pauseBtn" onclick="togglePause()">
+                        ⏸️ Dừng trận
+                    </button>
+                </div>
+
+                <!-- Chỉnh tốc độ trận đấu -->
+                <div class="speed-control-strip">
+                    <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700;">TỐC ĐỘ:</span>
+                    <button class="btn-action-tile btn-speed active" style="flex:1; padding:4px;" onclick="setSpeed(2600, this)">1x (2.5p/hiệp)</button>
+                    <button class="btn-action-tile btn-speed" style="flex:0.6; padding:4px;" onclick="setSpeed(1200, this)">2x</button>
+                    <button class="btn-action-tile btn-speed" style="flex:0.6; padding:4px;" onclick="setSpeed(500, this)">4x</button>
+                </div>
+
+                <!-- Thanh chỉnh âm thanh khán đài & SFX -->
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; padding-top:6px; border-top:1px solid var(--panel-border); font-size:0.75rem;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <button id="sfxMuteBtn" onclick="toggleMatchAudio()" style="background:rgba(16,185,129,0.2); border:1px solid var(--primary); color:#34d399; border-radius:6px; padding:3px 8px; cursor:pointer; font-size:0.75rem; font-weight:700;">🔊 Bật Tiếng</button>
+                        <span style="color:var(--accent-blue); font-weight:700;" id="soundStatusLabel">Khán đài: Sôi động</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                        <span>🔈</span>
+                        <input type="range" id="matchVolumeSlider" min="0" max="1" step="0.05" value="0.5" style="width:60px; accent-color:var(--primary); cursor:pointer;" oninput="setMatchVolume(this.value)" title="Âm lượng trận đấu">
+                        <span>🔊</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- [KHỐI 4 - BOTTOM-CENTER]: THÔNG SỐ TRẬN ĐẤU -->
+            <div class="dash-card">
+                <div class="dash-card-header">
+                    <span>📊 THÔNG SỐ TRẬN ĐẤU</span>
+                    <span style="font-size: 0.72rem; color: var(--text-muted);">LIVE STATS</span>
+                </div>
+
+                <div class="stats-table">
+                    <!-- Kiểm soát bóng -->
+                    <div>
+                        <div class="stat-row">
+                            <span class="stat-val-home" id="statPosHome">54%</span>
+                            <span class="stat-label">Kiểm soát bóng</span>
+                            <span class="stat-val-away" id="statPosAway">46%</span>
+                        </div>
+                        <div class="stat-bar-container">
+                            <div class="stat-bar-fill" id="statPosFill" style="width: 54%;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Số cú sút -->
+                    <div class="stat-row">
+                        <span class="stat-val-home" id="statShotsHome">6</span>
+                        <span class="stat-label">Tổng số cú sút</span>
+                        <span class="stat-val-away" id="statShotsAway">4</span>
+                    </div>
+
+                    <!-- Sút trúng đích -->
+                    <div class="stat-row">
+                        <span class="stat-val-home" id="statTargetHome">4</span>
+                        <span class="stat-label">Sút trúng đích</span>
+                        <span class="stat-val-away" id="statTargetAway">2</span>
+                    </div>
+
+                    <!-- Phạt góc -->
+                    <div class="stat-row">
+                        <span class="stat-val-home" id="statCornersHome">3</span>
+                        <span class="stat-label">Phạt góc</span>
+                        <span class="stat-val-away" id="statCornersAway">1</span>
+                    </div>
+
+                    <!-- Phạm lỗi / Thẻ phạt -->
+                    <div class="stat-row">
+                        <span class="stat-val-home" id="statFoulsHome">2 (🟨 0)</span>
+                        <span class="stat-label">Phạm lỗi & Thẻ</span>
+                        <span class="stat-val-away" id="statFoulsAway">4 (🟨 1)</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- [KHỐI 5 - BOTTOM-RIGHT]: SƠ ĐỒ ĐỐI THỦ -->
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <span>⚔️ SƠ ĐỒ ĐỐI THỦ</span>
+                <span style="color: #fb7185; font-size: 0.74rem;">{{ match.away_formation }}</span>
+            </div>
+
+            <!-- SÂN CHIẾN THUẬT MINI ĐỐI THỦ -->
+            <div class="formation-tactical-board away-board" id="awayTacticalBoard">
+                <div class="tactical-pitch-lines">
+                    <div class="tactical-center-line"></div>
+                </div>
+
+                <div class="lineup-row" id="awayRowAtt"></div>
+                <div class="lineup-row" id="awayRowMid"></div>
+                <div class="lineup-row" id="awayRowDef"></div>
+                <div class="lineup-row" id="awayRowGk"></div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- MODAL THAY NGƯỜI -->
+<div class="modal-screen" id="subModal">
+    <div class="modal-window">
+        <h3 style="color:#fff; font-size:1.15rem; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+            <span>🔄</span> Quyết định Thay người
+        </h3>
+        <div class="sub-field-group">
+            <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Cầu thủ rút ra:</label>
+            <select id="playerOutSelect" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:8px; border-radius:6px;"></select>
+        </div>
+        <div class="sub-field-group" style="margin-top:10px;">
+            <label style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">Cầu thủ vào sân:</label>
+            <select id="playerInSelect" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:8px; border-radius:6px;"></select>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+            <button class="btn-action-tile" onclick="closeSubModal()">Hủy</button>
+            <button class="btn-action-tile highlight" onclick="confirmSubstitution()">Xác nhận</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL KẾT QUẢ CÁC TRẬN ĐẤU CÙNG VÒNG -->
+<div class="modal-screen" id="otherMatchesModal">
+    <div class="modal-window">
+        <h3 style="color:#fff; font-size:1.1rem; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+            <span>📋</span> Kết Quả Các Trận Đấu Cùng Vòng (Live)
+        </h3>
+        <div id="otherMatchesList">
+            <div class="other-match-item"><span>Manchester Blue vs Chelsea Lions</span><span style="color:var(--tiki-gold);">1 - 1 (68')</span></div>
+            <div class="other-match-item"><span>Liverpool Red vs Newcastle Magpies</span><span style="color:var(--primary);">2 - 0 (72')</span></div>
+            <div class="other-match-item"><span>Arsenal Gunners vs Tottenham Spurs</span><span style="color:var(--tiki-gold);">2 - 2 (65')</span></div>
+            <div class="other-match-item"><span>Aston Lions vs Everton Toffees</span><span style="color:var(--primary);">1 - 0 (70')</span></div>
+        </div>
+        <button class="modal-close-btn" onclick="closeOtherMatchesModal()">Đóng</button>
+    </div>
+</div>
+
+<!-- OVERLAYS HẾT HIỆP & HẾT GIỜ -->
+<div class="modal-screen" id="halftimeOverlay">
+    <div class="status-alert-box">
+        <h2 style="color:#fff; font-size:1.5rem; margin-bottom:6px;">⏱️ HẾT HIỆP 1!</h2>
+        <p style="color:var(--text-muted); margin: 10px 0;">Tỉ số tạm thời:</p>
+        <div style="font-size:2.6rem; font-weight:900; color:var(--primary); margin-bottom:18px;" id="halfScore">0 - 0</div>
+        <button class="btn-action-tile highlight" style="font-size:0.95rem; padding:10px 24px; margin:0 auto;" onclick="resumeSecondHalf()">
+            ▶️ Bắt đầu Hiệp 2
+        </button>
+    </div>
+</div>
+
+<div class="modal-screen" id="fulltimeOverlay">
+    <div class="status-alert-box">
+        <h2 style="color:#fff; font-size:1.5rem; margin-bottom:6px;">🏆 KẾT THÚC TRẬN ĐẤU!</h2>
+        <p style="color:var(--text-muted); margin: 10px 0;">Tỉ số chung cuộc:</p>
+        <div style="font-size:2.6rem; font-weight:900; color:var(--primary); margin-bottom:18px;" id="finalScore">0 - 0</div>
+        <a href="{{ url_for('result') }}" class="btn-action-tile highlight" style="display:inline-block; text-decoration:none; font-size:0.95rem; padding:10px 24px;">
+            📊 Xem Bảng Xếp Hạng
+        </a>
+    </div>
+</div>
+
+<!-- ==================================================================== -->
+<!-- ENGINE SIMULATION 2.5D, TIKI-TAKA & SƠ ĐỒ CHIẾN THUẬT ĐỒNG BỘ -->
+<!-- ==================================================================== -->
+<script>
+// ==================== 1. HỆ THỐNG ÂM THANH TRẬN ĐẤU (SFX & WEB AUDIO API) ====================
+let userVolume = 0.5;
+let isMuted = false;
+
+const crowdAudio = new Audio('/sounds/bgm/Fan cherring.mp3');
+crowdAudio.loop = true;
+crowdAudio.volume = userVolume * 0.45;
+
+let audioCtx = null;
+function getAudioContext() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    return audioCtx;
+}
+
+function unlockAudio() {
+    getAudioContext();
+    if (!isMuted && crowdAudio.paused) {
+        crowdAudio.play().then(() => {
+            const btn = document.getElementById('sfxMuteBtn');
+            if (btn) btn.textContent = '🔊 Đang Bật';
+        }).catch(()=>{});
+    }
+}
+
+['click', 'pointerdown', 'touchstart', 'keydown'].forEach(evt => {
+    document.addEventListener(evt, unlockAudio, { once: true });
+});
+
+function setMatchVolume(val) {
+    userVolume = parseFloat(val);
+    if (!isMuted) {
+        crowdAudio.volume = userVolume * 0.45;
+    }
+}
+
+function toggleMatchAudio() {
+    isMuted = !isMuted;
+    const btn = document.getElementById('sfxMuteBtn');
+    const label = document.getElementById('soundStatusLabel');
+    if (isMuted) {
+        crowdAudio.pause();
+        if (btn) { btn.textContent = '🔇 Đã Tắt'; btn.style.background = 'rgba(239,68,68,0.2)'; btn.style.borderColor = '#ef4444'; btn.style.color = '#f87171'; }
+        if (label) label.textContent = 'Khán đài: Tắt tiếng';
+    } else {
+        crowdAudio.volume = userVolume * 0.45;
+        crowdAudio.play().catch(()=>{});
+        if (btn) { btn.textContent = '🔊 Đang Bật'; btn.style.background = 'rgba(16,185,129,0.2)'; btn.style.borderColor = 'var(--primary)'; btn.style.color = '#34d399'; }
+        if (label) label.textContent = 'Khán đài: Sôi động';
+    }
+}
+
+// --- TIẾNG CÒI TRỌNG TÀI (REFEREE WHISTLE SYNTHESIS) ---
+function playRefereeWhistle(type = 'foul') {
+    if (isMuted) return;
+    try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+
+        const makeWhistleBurst = (startTime, duration, freq1 = 2850, freq2 = 3100) => {
+            const osc1 = ctx.createOscillator();
+            const osc2 = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc1.type = 'triangle';
+            osc2.type = 'sine';
+            osc1.frequency.setValueAtTime(freq1, startTime);
+            osc2.frequency.setValueAtTime(freq2, startTime);
+
+            const tremolo = ctx.createOscillator();
+            const tremoloGain = ctx.createGain();
+            tremolo.frequency.setValueAtTime(32, startTime);
+            tremoloGain.gain.setValueAtTime(25, startTime);
+            tremolo.connect(osc1.frequency);
+            tremolo.connect(osc2.frequency);
+
+            const vol = userVolume * 0.4;
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(vol, startTime + 0.04);
+            gain.gain.setValueAtTime(vol, startTime + duration - 0.05);
+            gain.gain.linearRampToValueAtTime(0.001, startTime + duration);
+
+            osc1.connect(gain);
+            osc2.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc1.start(startTime);
+            osc2.start(startTime);
+            tremolo.start(startTime);
+
+            osc1.stop(startTime + duration);
+            osc2.stop(startTime + duration);
+            tremolo.stop(startTime + duration);
+        };
+
+        if (type === 'start') {
+            makeWhistleBurst(now, 0.85);
+        } else if (type === 'halftime') {
+            makeWhistleBurst(now, 0.35);
+            makeWhistleBurst(now + 0.45, 0.55);
+        } else if (type === 'fulltime') {
+            makeWhistleBurst(now, 0.3);
+            makeWhistleBurst(now + 0.38, 0.3);
+            makeWhistleBurst(now + 0.78, 0.8);
+        } else {
+            makeWhistleBurst(now, 0.45, 3000, 3300);
+        }
+    } catch(e) {}
+}
+
+// --- TIẾNG SÚT BÓNG BỔNG / SÚT CĂNG ---
+function playKickSound(isPowerShot = false) {
+    if (isMuted) return;
+    try {
+        const kick = new Audio('/sounds/sfx/Kick.wav');
+        kick.volume = Math.min(1.0, userVolume * (isPowerShot ? 1.0 : 0.7));
+        kick.play().catch(()=>{});
+
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(isPowerShot ? 150 : 95, now);
+        osc.frequency.exponentialRampToValueAtTime(30, now + 0.12);
+
+        gain.gain.setValueAtTime(userVolume * (isPowerShot ? 0.45 : 0.25), now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+    } catch(e) {}
+}
+
+// --- TIẾNG HÒ REO GHI BÀN / KHÁN ĐÀI BÙNG NỔ (GOAL CELEBRATION) ---
+function playGoalSound() {
+    if (isMuted) return;
+    try {
+        playRefereeWhistle('start');
+
+        const goal = new Audio('/sounds/sfx/Goal.wav');
+        goal.volume = Math.min(1.0, userVolume * 1.1);
+        goal.play().catch(()=>{});
+
+        // Tăng cực đại âm thanh khán đài reo hò
+        crowdAudio.volume = Math.min(1.0, userVolume * 0.95);
+        setTimeout(() => {
+            if (!isMuted) crowdAudio.volume = userVolume * 0.45;
+        }, 7000);
+
+        // Phát còi hú ăn mừng bàn thắng trên sân vận động (Stadium Goal Siren)
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const siren = ctx.createOscillator();
+        const sGain = ctx.createGain();
+        siren.type = 'sawtooth';
+        siren.frequency.setValueAtTime(440, now);
+        siren.frequency.linearRampToValueAtTime(880, now + 0.6);
+        siren.frequency.linearRampToValueAtTime(440, now + 1.2);
+        siren.frequency.linearRampToValueAtTime(880, now + 1.8);
+
+        sGain.gain.setValueAtTime(userVolume * 0.18, now);
+        sGain.gain.exponentialRampToValueAtTime(0.001, now + 2.2);
+
+        siren.connect(sGain);
+        sGain.connect(ctx.destination);
+        siren.start(now);
+        siren.stop(now + 2.2);
+    } catch(e) {}
+}
+
+// --- TIẾNG KHÁN ĐÀI Ồ LÊN TIẾC NUỐI KHI SÚT HỎNG ---
+function playCrowdCheer(type = 'miss') {
+    if (isMuted) return;
+    try {
+        if (type === 'miss') {
+            const ctx = getAudioContext();
+            const now = ctx.currentTime;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(240, now);
+            osc.frequency.linearRampToValueAtTime(130, now + 0.45);
+            gain.gain.setValueAtTime(userVolume * 0.22, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.45);
+        } else if (type === 'corner') {
+            playRefereeWhistle('foul');
+            crowdAudio.volume = Math.min(1.0, userVolume * 0.7);
+            setTimeout(() => {
+                if (!isMuted) crowdAudio.volume = userVolume * 0.45;
+            }, 3000);
+        }
+    } catch(e) {}
+}
+
+// ==================== 2. KHỞI TẠO CANVAS & TỌA ĐỘ ====================
+const canvas = document.getElementById('pitchCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+
+const BOUNDS = { minX: 45, maxX: W - 45, minY: 32, maxY: H - 32 };
+
+const homePlayersData = {{ match.home_players|tojson if match.home_players else '[]' }};
+const awayPlayersData = {{ match.away_players|tojson if match.away_players else '[]' }};
+
+const formations = {
+    '4-3-3': [
+        {pos:'GK', num:'1', line:'GK', x:68, y:270},
+        {pos:'LB', num:'3', line:'DEF', x:180, y:90}, {pos:'CB', num:'4', line:'DEF', x:160, y:195}, {pos:'CB', num:'5', line:'DEF', x:160, y:345}, {pos:'RB', num:'2', line:'DEF', x:180, y:450},
+        {pos:'CM', num:'8', line:'MID', x:310, y:150}, {pos:'CM', num:'6', line:'MID', x:285, y:270}, {pos:'CM', num:'10', line:'MID', x:310, y:390},
+        {pos:'LW', num:'11', line:'ATT', x:430, y:110}, {pos:'ST', num:'9', line:'ATT', x:460, y:270}, {pos:'RW', num:'7', line:'ATT', x:430, y:430}
+    ],
+    '4-2-3-1': [
+        {pos:'GK', num:'1', line:'GK', x:68, y:270},
+        {pos:'LB', num:'3', line:'DEF', x:180, y:90}, {pos:'CB', num:'4', line:'DEF', x:160, y:195}, {pos:'CB', num:'5', line:'DEF', x:160, y:345}, {pos:'RB', num:'2', line:'DEF', x:180, y:450},
+        {pos:'CDM', num:'6', line:'MID', x:260, y:195}, {pos:'CDM', num:'8', line:'MID', x:260, y:345},
+        {pos:'LW', num:'11', line:'ATT', x:410, y:110}, {pos:'CAM', num:'10', line:'MID', x:390, y:270}, {pos:'RW', num:'7', line:'ATT', x:410, y:430},
+        {pos:'ST', num:'9', line:'ATT', x:465, y:270}
+    ],
+    '5-3-2': [
+        {pos:'GK', num:'1', line:'GK', x:68, y:270},
+        {pos:'LWB', num:'3', line:'DEF', x:200, y:85}, {pos:'CB', num:'4', line:'DEF', x:160, y:180}, {pos:'CB', num:'5', line:'DEF', x:150, y:270}, {pos:'CB', num:'6', line:'DEF', x:160, y:360}, {pos:'RWB', num:'2', line:'DEF', x:200, y:455},
+        {pos:'CM', num:'8', line:'MID', x:310, y:160}, {pos:'CM', num:'10', line:'MID', x:290, y:270}, {pos:'CM', num:'7', line:'MID', x:310, y:380},
+        {pos:'ST', num:'9', line:'ATT', x:450, y:205}, {pos:'ST', num:'11', line:'ATT', x:450, y:335}
+    ]
+};
+
+const homeBase = formations["{{ match.home_formation or '4-3-3' }}"] || formations['4-3-3'];
+const awayBase = formations["{{ match.away_formation or '4-3-3' }}"] || formations['4-3-3'];
+
+// 11 Cầu thủ Đội Nhà
+const homePlayers = homeBase.map((p, i) => {
+    const rawName = (homePlayersData[i] || {}).name || p.pos;
+    const staminaVal = (homePlayersData[i] || {}).stamina || 100;
+    return {
+        id: i,
+        name: rawName.split(' ').slice(-1)[0],
+        fullName: rawName,
+        num: p.num,
+        pos: p.pos,
+        line: p.line,
+        x: p.x, y: p.y,
+        targetX: p.x, targetY: p.y,
+        baseX: p.x, baseY: p.y,
+        team: 'home',
+        stamina: staminaVal,
+        hasBall: false,
+        animSeed: Math.random() * 100
+    };
+});
+
+// 11 Cầu thủ Đội Khách
+const awayPlayers = awayBase.map((p, i) => {
+    const rawName = (awayPlayersData[i] || {}).name || p.pos;
+    const staminaVal = (awayPlayersData[i] || {}).stamina || 100;
+    return {
+        id: i + 11,
+        name: rawName.split(' ').slice(-1)[0],
+        fullName: rawName,
+        num: p.num,
+        pos: p.pos,
+        line: p.line,
+        x: W - p.x, y: p.y,
+        targetX: W - p.x, targetY: p.y,
+        baseX: W - p.x, baseY: p.y,
+        team: 'away',
+        stamina: staminaVal,
+        hasBall: false,
+        animSeed: Math.random() * 100
+    };
+});
+
+const referee = { x: W / 2 + 30, y: H / 2 - 40, targetX: W / 2, targetY: H / 2 };
+const allPlayers = [...homePlayers, ...awayPlayers];
+
+const ball = {
+    x: W / 2, y: H / 2, z: 0,
+    targetX: W / 2, targetY: H / 2, targetZ: 0,
+    speed: 0.18,
+    carrier: null,
+    isShooting: false,
+    trail: []
+};
+
+let tacticalTriangles = [];
+let simClock = 0;
+let particles = [];
+let highlightBanner = { text: "", subText: "", timer: 0, color: "#fde047" };
+
+// Thống kê động
+let statsData = {
+    shotsHome: 6, shotsAway: 4,
+    targetHome: 4, targetAway: 2,
+    cornersHome: 3, cornersAway: 1,
+    foulsHome: 2, foulsAway: 4
+};
+
+function triggerHighlightBanner(mainText, subText, color = "#fde047", duration = 80) {
+    highlightBanner.text = mainText;
+    highlightBanner.subText = subText;
+    highlightBanner.color = color;
+    highlightBanner.timer = duration;
+}
+
+function spawnGoalParticles(x, y) {
+    for (let i = 0; i < 55; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 2.5 + Math.random() * 6.5;
+        particles.push({
+            x: x, y: y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            color: ['#10b981', '#38bdf8', '#fbbf24', '#ffffff', '#f43f5e'][Math.floor(Math.random()*5)],
+            alpha: 1.0,
+            radius: 2 + Math.random() * 3
+        });
+    }
+}
+
+// ==================== 3. RENDER SƠ ĐỒ MINI CHIẾN THUẬT (BOX 2 & BOX 5) ====================
+function renderTacticalBoards() {
+    const renderTeamBoard = (teamPlayers, rowAttId, rowMidId, rowDefId, rowGkId, isHome) => {
+        const att = teamPlayers.filter(p => p.line === 'ATT');
+        const mid = teamPlayers.filter(p => p.line === 'MID');
+        const def = teamPlayers.filter(p => p.line === 'DEF');
+        const gk = teamPlayers.filter(p => p.line === 'GK');
+
+        const populateRow = (rowId, playersList) => {
+            const row = document.getElementById(rowId);
+            if (!row) return;
+            row.innerHTML = '';
+            playersList.forEach(p => {
+                const token = document.createElement('div');
+                token.className = 'tactical-token';
+                token.innerHTML = `
+                    <div class="token-circle ${isHome ? (p.pos === 'GK' ? 'gk' : 'home') : 'away'} ${p.hasBall ? 'has-ball' : ''}" id="miniToken_${p.id}">
+                        ${p.num || p.pos}
+                    </div>
+                    <div class="token-name-tag">${p.name}</div>
+                    <div class="token-stamina-bar">
+                        <div class="token-stamina-fill" id="miniStamina_${p.id}" style="width: ${p.stamina || 100}%;"></div>
+                    </div>
+                `;
+                row.appendChild(token);
+            });
+        };
+
+        populateRow(rowAttId, att);
+        populateRow(rowMidId, mid);
+        populateRow(rowDefId, def);
+        populateRow(rowGkId, gk);
+    };
+
+    renderTeamBoard(homePlayers, 'homeRowAtt', 'homeRowMid', 'homeRowDef', 'homeRowGk', true);
+    renderTeamBoard(awayPlayers, 'awayRowAtt', 'awayRowMid', 'awayRowDef', 'awayRowGk', false);
+}
+renderTacticalBoards();
+
+// ==================== 4. VẼ SÂN CỎ QUỐC TẾ ====================
+function drawPitch() {
+    const stripes = 16;
+    const stripeW = (W - 40) / stripes;
+    for (let i = 0; i < stripes; i++) {
+        ctx.fillStyle = (i % 2 === 0) ? '#15803d' : '#166534';
+        ctx.fillRect(20 + i * stripeW, 15, stripeW, H - 30);
+    }
+
+    const stadiumLight = ctx.createRadialGradient(W / 2, H / 2, 70, W / 2, H / 2, W / 1.3);
+    stadiumLight.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
+    stadiumLight.addColorStop(1, 'rgba(0, 0, 0, 0.45)');
+    ctx.fillStyle = stadiumLight;
+    ctx.fillRect(20, 15, W - 40, H - 30);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 2.0;
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.25)';
+    ctx.shadowBlur = 3;
+
+    ctx.strokeRect(25, 20, W - 50, H - 40);
+
+    ctx.beginPath();
+    ctx.moveTo(W / 2, 20); ctx.lineTo(W / 2, H - 20);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, 65, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+
+    ctx.strokeRect(25, H / 2 - 110, 125, 220);
+    ctx.strokeRect(25, H / 2 - 50, 45, 100);
+    ctx.strokeRect(9, H / 2 - 35, 16, 70);
+
+    ctx.strokeRect(W - 150, H / 2 - 110, 125, 220);
+    ctx.strokeRect(W - 70, H / 2 - 50, 45, 100);
+    ctx.strokeRect(W - 25, H / 2 - 35, 16, 70);
+
+    ctx.beginPath();
+    ctx.arc(100, H / 2, 3, 0, Math.PI * 2);
+    ctx.arc(W - 100, H / 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath(); ctx.arc(100, H / 2, 40, -0.65, 0.65); ctx.stroke();
+    ctx.beginPath(); ctx.arc(W - 100, H / 2, 40, Math.PI - 0.65, Math.PI + 0.65); ctx.stroke();
+
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.lineWidth = 1;
+    for (let y = H / 2 - 35; y <= H / 2 + 35; y += 7) {
+        ctx.beginPath(); ctx.moveTo(9, y); ctx.lineTo(25, y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(W - 25, y); ctx.lineTo(W - 9, y); ctx.stroke();
+    }
+}
+
+// ==================== 5. VẬN HÀNH CHUYỂN ĐỘNG TỰ DO & TỪ TỐN ====================
+function updateSimulation() {
+    simClock += 0.035;
+
+    if (!Number.isFinite(ball.x)) ball.x = W / 2;
+    if (!Number.isFinite(ball.y)) ball.y = H / 2;
+
+    const ballX = ball.x;
+    const ballY = ball.y;
+
+    allPlayers.forEach(p => {
+        const wanderX = Math.cos(simClock * 1.5 + p.animSeed) * 12;
+        const wanderY = Math.sin(simClock * 1.2 + p.animSeed) * 10;
+
+        if (p.hasBall) {
+            const forwardPush = (p.team === 'home') ? 25 : -25;
+            p.targetX = p.x + forwardPush + Math.sin(simClock * 3) * 6;
+            p.targetY = p.y + Math.cos(simClock * 2.5) * 8;
+        } else {
+            p.targetX = p.baseX + (ballX - W/2) * 0.35 + wanderX;
+            p.targetY = p.baseY + (ballY - H/2) * 0.28 + wanderY;
+        }
+
+        p.targetX = Math.max(BOUNDS.minX, Math.min(BOUNDS.maxX, p.targetX));
+        p.targetY = Math.max(BOUNDS.minY, Math.min(BOUNDS.maxY, p.targetY));
+
+        p.x += (p.targetX - p.x) * 0.045;
+        p.y += (p.targetY - p.y) * 0.045;
+
+        if (!Number.isFinite(p.x)) p.x = p.baseX;
+        if (!Number.isFinite(p.y)) p.y = p.baseY;
+    });
+
+    referee.targetX = ballX + 35;
+    referee.targetY = ballY - 35;
+    referee.x += (referee.targetX - referee.x) * 0.035;
+    referee.y += (referee.targetY - referee.y) * 0.035;
+
+    if (ball.carrier && !ball.isShooting) {
+        const angle = (ball.carrier.team === 'home') ? 0.2 : (Math.PI - 0.2);
+        ball.targetX = ball.carrier.x + Math.cos(angle) * 14;
+        ball.targetY = ball.carrier.y + Math.sin(angle) * 14;
+        ball.targetZ = 0;
+        ball.speed = 0.20;
+
+        document.getElementById('carrierHudName').textContent = `${ball.carrier.name} (${ball.carrier.pos} #${ball.carrier.num})`;
+    }
+
+    if (!Number.isFinite(ball.targetX)) ball.targetX = W / 2;
+    if (!Number.isFinite(ball.targetY)) ball.targetY = H / 2;
+
+    ball.trail.push({x: ball.x, y: ball.y - ball.z});
+    if (ball.trail.length > 7) ball.trail.shift();
+
+    ball.x += (ball.targetX - ball.x) * ball.speed;
+    ball.y += (ball.targetY - ball.y) * ball.speed;
+    ball.z += (ball.targetZ - ball.z) * 0.12;
+
+    if (Math.hypot(ball.targetX - ball.x, ball.targetY - ball.y) < 6) {
+        ball.isShooting = false;
+        ball.speed = 0.16;
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const pt = particles[i];
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        pt.vy += 0.12;
+        pt.alpha -= 0.018;
+        if (pt.alpha <= 0) particles.splice(i, 1);
+    }
+}
+
+// ==================== 6. VẼ CẦU THỦ & TIKI-TAKA ====================
+function drawEntities() {
+    if (tacticalTriangles.length > 0) {
+        ctx.save();
+        tacticalTriangles.forEach(tri => {
+            if (tri.p1 && tri.p2 && tri.p3) {
+                ctx.beginPath();
+                ctx.moveTo(tri.p1.x, tri.p1.y);
+                ctx.lineTo(tri.p2.x, tri.p2.y);
+                ctx.lineTo(tri.p3.x, tri.p3.y);
+                ctx.closePath();
+                ctx.strokeStyle = 'rgba(253, 224, 71, 0.45)';
+                ctx.lineWidth = 1.6;
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(253, 224, 71, 0.06)';
+                ctx.fill();
+            }
+        });
+        ctx.restore();
+    }
+
+    if (ball.trail.length > 1) {
+        for (let i = 0; i < ball.trail.length - 1; i++) {
+            const p1 = ball.trail[i];
+            const p2 = ball.trail[i+1];
+            if (p1 && p2 && Number.isFinite(p1.x) && Number.isFinite(p2.x)) {
+                ctx.strokeStyle = `rgba(255, 255, 255, ${(i+1)/ball.trail.length * (ball.isShooting ? 0.85 : 0.25)})`;
+                ctx.lineWidth = ball.isShooting ? 2.8 : 1.2;
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+            }
+        }
+    }
+
+    // Trọng tài
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(referee.x, referee.y, 7.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#facc15';
+    ctx.fill();
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+
+    // 22 Cầu thủ (R = 10.5px)
+    const R = 10.5;
+
+    allPlayers.forEach(p => {
+        if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y + 9, 9, 4, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fill();
+
+        if (p.hasBall) {
+            const glowR = 17 + Math.sin(simClock * 4) * 2;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2);
+            ctx.strokeStyle = '#fde047';
+            ctx.lineWidth = 2.5;
+            ctx.shadowColor = '#fde047';
+            ctx.shadowBlur = 16;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            ctx.font = '900 11px sans-serif';
+            const nameW = ctx.measureText(p.name).width;
+            ctx.fillStyle = '#fde047';
+            ctx.beginPath();
+            ctx.roundRect(p.x - nameW / 2 - 5, p.y - 25, nameW + 10, 14, 3);
+            ctx.fill();
+
+            ctx.fillStyle = '#000000';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(p.name, p.x, p.y - 18);
+        }
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, R, 0, Math.PI * 2);
+
+        const grad = ctx.createRadialGradient(p.x - 2, p.y - 2, 1, p.x, p.y, R);
+        if (p.pos === 'GK') {
+            grad.addColorStop(0, '#fef08a');
+            grad.addColorStop(1, '#ca8a04');
+        } else if (p.team === 'home') {
+            grad.addColorStop(0, '#38bdf8');
+            grad.addColorStop(1, '#1e40af');
+        } else {
+            grad.addColorStop(0, '#fb7185');
+            grad.addColorStop(1, '#9f1239');
+        }
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.strokeStyle = p.hasBall ? '#fde047' : '#ffffff';
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '900 9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(p.num || p.pos, p.x, p.y + 0.5);
+
+        const staminaPercent = Math.max(0, Math.min(100, p.stamina || 100));
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, R + 2, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * (staminaPercent / 100)));
+        ctx.strokeStyle = staminaPercent > 65 ? '#10b981' : (staminaPercent > 40 ? '#f59e0b' : '#ef4444');
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+
+        if (!p.hasBall) {
+            ctx.font = 'bold 9px sans-serif';
+            ctx.fillStyle = '#f8fafc';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'alphabetic';
+            ctx.fillText(p.name, p.x, p.y + 21);
+        }
+
+        ctx.restore();
+    });
+
+    // Quả bóng 3D
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(ball.x, ball.y + 4, Math.max(2, 4.5 - ball.z * 0.1), Math.max(1, 2.2 - ball.z * 0.05), 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y - ball.z, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+
+    // Hạt pháo hoa
+    particles.forEach(pt => {
+        ctx.save();
+        ctx.globalAlpha = pt.alpha;
+        ctx.fillStyle = pt.color;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // Banner thông báo giữa sân
+    if (highlightBanner.timer > 0) {
+        highlightBanner.timer--;
+        ctx.save();
+        const alpha = Math.min(1, highlightBanner.timer / 20);
+        ctx.fillStyle = `rgba(15, 23, 42, ${0.9 * alpha})`;
+        ctx.strokeStyle = highlightBanner.color;
+        ctx.lineWidth = 2.0;
+        ctx.shadowColor = highlightBanner.color;
+        ctx.shadowBlur = 18;
+
+        const boxW = 500;
+        const boxH = 54;
+        const boxX = W / 2 - boxW / 2;
+        const boxY = H / 2 - boxH / 2 - 15;
+
+        ctx.beginPath();
+        ctx.roundRect(boxX, boxY, boxW, boxH, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = highlightBanner.color;
+        ctx.font = '900 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(highlightBanner.text, W / 2, boxY + 22);
+
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText(highlightBanner.subText, W / 2, boxY + 42);
+        ctx.restore();
+    }
+}
+
+function renderLoop() {
+    ctx.clearRect(0, 0, W, H);
+    drawPitch();
+    updateSimulation();
+    drawEntities();
+    requestAnimationFrame(renderLoop);
+}
+requestAnimationFrame(renderLoop);
+
+// ==================== 7. CHUỖI TIKI-TAKA PHỐI HỢP ====================
+function executeTikiTakaPlay() {
+    if (ball.isShooting) return;
+
+    allPlayers.forEach(p => p.hasBall = false);
+    const isHome = Math.random() < 0.58;
+    const team = isHome ? homePlayers : awayPlayers;
+
+    const mids = team.filter(p => p.line === 'MID');
+    const atts = team.filter(p => p.line === 'ATT');
+    const defs = team.filter(p => p.line === 'DEF');
+
+    const p1 = (defs.length > 0 ? defs[Math.floor(Math.random()*defs.length)] : team[1]);
+    const p2 = (mids.length > 0 ? mids[Math.floor(Math.random()*mids.length)] : team[5]);
+    const p3 = (atts.length > 0 ? atts[Math.floor(Math.random()*atts.length)] : team[9]);
+
+    if (!p1 || !p2 || !p3) return;
+
+    tacticalTriangles = [{ p1, p2, p3 }];
+
+    p1.hasBall = true;
+    ball.carrier = p1;
+    triggerHighlightBanner("✨ TIKI-TAKA: ĐẬP NHẢ CỰ LY NGẮN!", `${p1.name} mở đầu chuỗi ban bật từ tốn!`, "#fde047", 75);
+
+    setTimeout(() => {
+        p1.hasBall = false;
+        ball.carrier = null;
+        ball.targetX = p2.x;
+        ball.targetY = p2.y;
+        ball.speed = 0.26;
+
+        setTimeout(() => {
+            p2.hasBall = true;
+            ball.carrier = p2;
+
+            setTimeout(() => {
+                p2.hasBall = false;
+                ball.carrier = null;
+                ball.targetX = p3.x + (isHome ? 25 : -25);
+                ball.targetY = p3.y;
+                ball.speed = 0.28;
+
+                setTimeout(() => {
+                    p3.hasBall = true;
+                    ball.carrier = p3;
+                    document.getElementById('carrierHudName').textContent = `${p3.name} (${p3.pos} #${p3.num})`;
+                    tacticalTriangles = [];
+                }, 600);
+            }, 700);
+        }, 600);
+    }, 800);
+}
+setInterval(executeTikiTakaPlay, 4500);
+
+// ==================== 8. SÚT BÓNG ====================
+function triggerVisualShot(isHomeAttack, isGoal, dist) {
+    const targetGoalX = isHomeAttack ? (W - 30) : 30;
+    const targetGoalY = H / 2 + (Math.random() - 0.5) * 45;
+
+    allPlayers.forEach(p => p.hasBall = false);
+    const shooters = isHomeAttack ? homePlayers.filter(p => p.line === 'ATT' || p.pos === 'CAM')
+                                  : awayPlayers.filter(p => p.line === 'ATT' || p.pos === 'CAM');
+    const shooter = (shooters.length > 0) ? shooters[Math.floor(Math.random() * shooters.length)] : (isHomeAttack ? homePlayers[9] : awayPlayers[9]);
+
+    if (shooter) {
+        shooter.hasBall = true;
+        ball.carrier = shooter;
+        shooter.targetX = isHomeAttack ? (W - 170) : 170;
+        shooter.targetY = targetGoalY + (Math.random() - 0.5) * 25;
+
+        playKickSound(true);
+        triggerHighlightBanner(`🚀 CÚ NÃ ĐẠI BÁC TỪ ${dist || 18}M!`, `${shooter.name} dứt điểm hiểm hóc!`, "#fbbf24", 75);
+
+        setTimeout(() => {
+            ball.carrier = null;
+            ball.x = shooter.x;
+            ball.y = shooter.y;
+            ball.targetX = targetGoalX;
+            ball.targetY = targetGoalY;
+            ball.targetZ = 10;
+            ball.speed = 0.35;
+            ball.isShooting = true;
+
+            const gk = isHomeAttack ? awayPlayers.find(p => p.pos === 'GK') : homePlayers.find(p => p.pos === 'GK');
+            if (gk) {
+                gk.targetY = isGoal ? (targetGoalY > H/2 ? targetGoalY - 35 : targetGoalY + 35) : targetGoalY;
+            }
+
+            if (isGoal) {
+                setTimeout(() => {
+                    spawnGoalParticles(targetGoalX, targetGoalY);
+                    playGoalSound();
+                    triggerHighlightBanner(`⚽ VÀOOO! SIÊU PHẨM XÉ TOANG MÀNG LƯỚI!`, `${shooter.name} ghi bàn thắng tuyệt đỉnh!`, "#10b981", 95);
+                }, 350);
+            } else {
+                setTimeout(() => {
+                    playCrowdCheer('miss');
+                }, 350);
+            }
+        }, 300);
+    }
+}
+
+// ==================== 9. ĐỒNG HỒ & TICK TRẬN ĐẤU (2.6s / PHÚT = 2 PHÚT/HIỆP) ====================
+let tickIntervalMs = 2600;
+let isPaused = false;
+let timerId = null;
+let currentMinute = 1;
+
+let lastHGoals = {{ match.home_goals or 0 }};
+let lastAGoals = {{ match.away_goals or 0 }};
+
+function updateClockDisplay(min) {
+    const formatted = min < 10 ? `0${min}:00` : `${min}:00`;
+    document.getElementById('matchClock').textContent = formatted;
+}
+
+function runTick() {
+    if (isPaused) return;
+
+    fetch('/api/tick', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+    .then(res => res.json())
+    .then(data => {
+        if (data.finished) {
+            clearInterval(timerId);
+            updateClockDisplay(90);
+            playRefereeWhistle('fulltime');
+            document.getElementById('matchStatusText').textContent = "🔴 Kết thúc";
+            document.getElementById('finalScore').textContent = `${data.home_goals} - ${data.away_goals}`;
+            document.getElementById('fulltimeOverlay').style.display = 'flex';
+            return;
+        }
+
+        if (data.halftime || data.phase === 'halftime') {
+            clearInterval(timerId);
+            updateClockDisplay(45);
+            playRefereeWhistle('halftime');
+            document.getElementById('matchStatusText').textContent = "🟡 Nghỉ giữa hiệp";
+            document.getElementById('halfScore').textContent = `${data.home_goals} - ${data.away_goals}`;
+            document.getElementById('halftimeOverlay').style.display = 'flex';
+            return;
+        }
+
+        currentMinute = data.current_minute;
+        document.getElementById('scoreHome').textContent = data.home_goals;
+        document.getElementById('scoreAway').textContent = data.away_goals;
+        updateClockDisplay(currentMinute);
+
+        // Cập nhật thẻ bù giờ
+        const injuryBadge = document.getElementById('tvInjuryBadge');
+        if (currentMinute >= 43 && currentMinute <= 45) {
+            injuryBadge.style.display = 'inline-flex';
+            injuryBadge.textContent = "+2'";
+        } else if (currentMinute >= 88 && currentMinute <= 90) {
+            injuryBadge.style.display = 'inline-flex';
+            injuryBadge.textContent = "+4'";
+        } else {
+            injuryBadge.style.display = 'none';
+        }
+
+        // Cập nhật thể lực trên mini tactical board
+        if (data.home_players) {
+            data.home_players.forEach((hp, idx) => {
+                if (homePlayers[idx]) {
+                    homePlayers[idx].stamina = hp.stamina;
+                    const stEl = document.getElementById(`miniStamina_${idx}`);
+                    if (stEl) stEl.style.width = `${hp.stamina}%`;
+                }
+            });
+        }
+
+        // Cập nhật ngẫu nhiên thông số trận đấu
+        const posHome = Math.min(75, Math.max(25, 52 + (data.home_goals - data.away_goals) * 4 + Math.floor(Math.sin(currentMinute) * 5)));
+        document.getElementById('statPosHome').textContent = `${posHome}%`;
+        document.getElementById('statPosAway').textContent = `${100 - posHome}%`;
+        document.getElementById('statPosFill').style.width = `${posHome}%`;
+
+        const isHomeGoal = data.home_goals > lastHGoals;
+        const isAwayGoal = data.away_goals > lastAGoals;
+
+        if (isHomeGoal || isAwayGoal) {
+            playGoalSound();
+            triggerVisualShot(isHomeGoal, true, 18);
+            lastHGoals = data.home_goals;
+            lastAGoals = data.away_goals;
+        }
+    })
+    .catch(err => console.error("Lỗi tick:", err));
+}
+
+function startTimer() {
+    if (timerId) clearInterval(timerId);
+    timerId = setInterval(runTick, tickIntervalMs);
+}
+
+function setSpeed(ms, btn) {
+    tickIntervalMs = ms;
+    document.querySelectorAll('.btn-speed').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    startTimer();
+}
+
+function togglePause() {
+    isPaused = !isPaused;
+    const btn = document.getElementById('pauseBtn');
+    if (isPaused) {
+        btn.textContent = "▶️ Tiếp tục";
+        btn.style.background = "#eab308";
+        document.getElementById('matchStatusText').textContent = "⏸️ Tạm dừng";
+    } else {
+        btn.textContent = "⏸️ Dừng trận";
+        btn.style.background = "#1e293b";
+        document.getElementById('matchStatusText').textContent = "🟢 Đang đá";
+        startTimer();
+    }
+}
+
+function resumeSecondHalf() {
+    document.getElementById('halftimeOverlay').style.display = 'none';
+    fetch('/start_second_half', { method: 'POST' }).then(() => {
+        document.getElementById('matchStatusText').textContent = "🟢 Hiệp 2";
+        isPaused = false;
+        startTimer();
+    });
+}
+
+function setTactic(tactic) {
+    fetch('/api/change_tactic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tactic: tactic })
+    }).then(res => res.json()).then(data => {
+        if (data.success) {
+            document.querySelectorAll('.btn-tactic').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            triggerHighlightBanner(`📋 CHIẾN THUẬT: ${tactic.toUpperCase()}!`, "Khối đội hình thay đổi cự ly và cường độ ban bật!", "#38bdf8", 70);
+        }
+    });
+}
+
+function openSubModal() {
+    isPaused = true;
+    fetch('/get_players')
+    .then(res => res.json())
+    .then(data => {
+        const outSel = document.getElementById('playerOutSelect');
+        const inSel = document.getElementById('playerInSelect');
+        outSel.innerHTML = '';
+        inSel.innerHTML = '';
+
+        data.starting.forEach(p => {
+            outSel.innerHTML += `<option value="${p.id}">${p.position} - ${p.name} (Thể lực: ${Math.round(p.stamina)}%)</option>`;
+        });
+        data.subs.forEach(p => {
+            inSel.innerHTML += `<option value="${p.id}">${p.position} - ${p.name} (Thể lực: ${Math.round(p.stamina)}%)</option>`;
+        });
+
+        document.getElementById('subModal').style.display = 'flex';
+    });
+}
+
+function closeSubModal() {
+    document.getElementById('subModal').style.display = 'none';
+    isPaused = false;
+    startTimer();
+}
+
+function confirmSubstitution() {
+    const outId = parseInt(document.getElementById('playerOutSelect').value);
+    const inId = parseInt(document.getElementById('playerInSelect').value);
+
+    fetch('/substitute_api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player_out: outId, player_in: inId })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('subsUsedCount').textContent = data.subs_used;
+            closeSubModal();
+            triggerHighlightBanner(`🔄 THAY NGƯỜI THÀNH CÔNG!`, `Lần thay người thứ ${data.subs_used}/3 của trận đấu.`, "#a855f7", 75);
+        } else {
+            alert(data.error || "Không thể thay người!");
+        }
+    });
+}
+
+function openOtherMatchesModal() {
+    document.getElementById('otherMatchesModal').style.display = 'flex';
+}
+function closeOtherMatchesModal() {
+    document.getElementById('otherMatchesModal').style.display = 'none';
+}
+
+startTimer();
+</script>
+
+</body>
+</html>

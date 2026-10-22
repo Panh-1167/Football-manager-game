@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Khôi phục CLB</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container text-center">
+        <h2>🔑 Khôi Phục CLB từ Passcode</h2>
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        <form method="POST">
+            <div class="form-group">
+                <label>Nhập Passcode bạn đã đặt khi lưu:</label>
+                <input type="password" name="passcode" required placeholder="Passcode bí mật...">
+            </div>
+            <button type="submit" class="btn primary">Khôi phục dữ liệu</button>
+            <a href="{{ url_for('index') }}" class="btn secondary mt-2">← Quay lại Trang chủ</a>
+        </form>
+    </div>
+</body>
+</html>

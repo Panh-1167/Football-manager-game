@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Football Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container text-center">
+        <h1>⚽ FOOTBALL MANAGER</h1>
+        <p class="info">Trò chơi quản lý bóng đá đỉnh cao - Dẫn dắt CLB từ Hạng 2 đến Champions League!</p>
+        <div class="menu">
+            <a href="{{ url_for('create_club') }}" class="btn primary">🏟️ Tạo CLB mới</a>
+            <a href="{{ url_for('load') }}" class="btn secondary">🔑 Khôi phục CLB (Backup Passcode)</a>
+            <a href="{{ url_for('tutorial') }}" class="btn secondary">📖 Hướng dẫn chơi</a>
+        </div>
+    </div>
+</body>
+</html>

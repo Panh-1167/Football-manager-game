@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Kết quả trận đấu</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container text-center">
+        <h2>🏆 KẾT QUẢ TRẬN ĐẤU</h2>
+        <div class="score">
+            <div>{{ match.home if match else 'CLB' }}</div>
+            <div class="goals">{{ match.home_goals if match else 2 }} - {{ match.away_goals if match else 1 }}</div>
+            <div>{{ match.away if match else 'Đối thủ' }}</div>
+        </div>
+        <div class="info">
+            <p>Trận đấu đã khép lại. Kết quả: <strong>{{ match.result }}</strong> — bạn nhận được <strong>+{{ match.points }} điểm</strong> trên bảng xếp hạng.</p>
+        </div>
+        <a href="{{ url_for('dashboard') }}" class="btn primary">← Trở về Dashboard</a>
+    </div>
+</body>
+</html>

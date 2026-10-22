@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Lịch sử trận đấu</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h2>🗂️ Lịch Sử Trận Đấu</h2>
+        {% if matches %}
+        <table>
+            <thead><tr><th>Vòng</th><th>Đối thủ</th><th>Tỉ số</th><th>Kết quả</th><th>Điểm</th></tr></thead>
+            <tbody>{% for match in matches %}
+                <tr><td>{{ match.round }}</td><td>{{ match.opponent }}</td><td><strong>{{ match.home_goals }} - {{ match.away_goals }}</strong></td><td>{{ match.result }}</td><td>{{ match.points }}</td></tr>
+            {% endfor %}</tbody>
+        </table>
+        {% else %}
+        <div class="info">⚽ Bạn chưa thi đấu trận nào. Hãy bắt đầu trận đầu tiên!</div>
+        {% endif %}
+        <a href="{{ url_for('dashboard') }}" class="btn secondary">← Quay lại Dashboard</a>
+    </div>
+</body>
+</html>

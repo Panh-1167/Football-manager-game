@@ -84,11 +84,19 @@ def calculate_team_strength(team, tactic="Can bang"):
 
     # 3. Điều chỉnh theo chiến thuật
     if tactic == "Tan cong":
-        total_att *= 1.15
+        total_att *= 1.16
         total_def *= 0.90
-    elif tactic == "Phong thu":
-        total_att *= 0.85
-        total_def *= 1.20
+    elif tactic in ["Phong thu", "Xe bus"]:
+        total_att *= 0.80
+        total_def *= 1.28
+    elif tactic == "Tiki-Taka":
+        midfield_power *= 1.22
+        total_att *= 1.08
+        total_def *= 1.06
+    elif tactic == "Phan cong":
+        total_spd *= 1.20
+        total_att *= 1.14
+        total_def *= 1.10
 
     overall = (total_att * 0.4 + total_def * 0.4 + total_spd * 0.2)
     return {
@@ -252,7 +260,7 @@ def run_minutes(match, start_min, end_min, home_tactic="Can bang", away_tactic="
             continue
 
         # 2. Tiêu hao thể lực theo đặc thù vị trí
-        base_loss = 0.35 if home_tactic == "Tan cong" else (0.22 if home_tactic == "Phong thu" else 0.28)
+        base_loss = 0.35 if home_tactic == "Tan cong" else (0.22 if home_tactic in ["Phong thu", "Xe bus"] else (0.32 if home_tactic == "Phan cong" else 0.28))
         for p in home_active:
             w = POSITION_WEIGHTS.get(getattr(p, 'position', 'CM'), DEFAULT_WEIGHT)
             loss = base_loss * w.get("stamina_rate", 1.0)
@@ -653,6 +661,195 @@ def run_minutes(match, start_min, end_min, home_tactic="Can bang", away_tactic="
                     f"⚠️ Phạm lỗi! Phút {minute}: Trọng tài cắt còi thổi phạt {fowler_tag} ({foul_team.name}) sau pha {random.choice(normal_fouls)}. Quả đá phạt cho {victim_team.name}.",
                     event_type="foul",
                     data={"is_home": is_home_foul, "fowler": fowler.name, "victim": victim.name}
+                )
+
+        # ==========================================================
+        # NHÁNH 4: PHẠT GÓC (CORNER KICK) (~12% mỗi phút)
+        # ==========================================================
+        elif roll < 0.63:
+            is_home_corner = (random.random() < home_prob)
+            att_team = home_team if is_home_corner else away_team
+            def_team = away_team if is_home_corner else home_team
+            att_players = home_active if is_home_corner else away_active
+            def_players = away_active if is_home_corner else home_active
+
+            if not att_players or not def_players:
+                continue
+
+            if is_home_corner:
+                match.corners_home += 1
+            else:
+                match.corners_away += 1
+
+            # Người thực hiện đá phạt góc (ưu tiên cánh, tiền vệ tấn công)
+            taker_candidates = [p for p in att_players if getattr(p, 'position', '') in ['LW', 'RW', 'CAM', 'LM', 'RM', 'LB', 'RB', 'LWB', 'RWB']]
+            taker = random.choice(taker_candidates) if taker_candidates else att_players[0]
+            taker_pos = getattr(taker, 'position', 'W')
+            taker_tag = f"[{taker_pos}] {taker.name}"
+
+            # Người bật cao đón bóng trong vòng cấm (ưu tiên ST, CB, CM không chiến)
+            header_candidates = [p for p in att_players if getattr(p, 'position', '') in ['ST', 'CB', 'CF', 'CM'] and p.name != taker.name]
+            header_player = random.choice(header_candidates) if header_candidates else random.choice(att_players)
+            header_pos = getattr(header_player, 'position', 'ST')
+            header_tag = f"[{header_pos}] {header_player.name}"
+
+            corner_side = random.choice(["top", "bottom"])
+
+            # Tỉ lệ đánh đầu thành bàn từ phạt góc (~12%)
+            is_goal_from_corner = (random.random() < 0.12)
+            if is_goal_from_corner:
+                if is_home_corner:
+                    match.home_goals += 1
+                    match.shots_home += 1
+                    match.target_home += 1
+                else:
+                    match.away_goals += 1
+                    match.shots_away += 1
+                    match.target_away += 1
+                header_player.goals += 1
+
+                match.add_event(
+                    minute,
+                    f"⚽ VÀOOO! Phút {minute}: {taker_tag} ({att_team.name}) treo bóng góc cực kỳ chuẩn xác, {header_tag} bật cao đánh đầu dũng mãnh tung lưới đối phương! Tỉ số {match.home_goals}-{match.away_goals}",
+                    event_type="goal",
+                    data={
+                        "is_home": is_home_corner,
+                        "shooter": header_player.name,
+                        "dist": 8,
+                        "zone": "Phạt góc (Đánh đầu)",
+                        "pos": header_pos
+                    }
+                )
+            else:
+                corner_outcomes = [
+                    f"nhưng thủ môn đối phương đã băng ra đấm bóng an toàn",
+                    f"cú đánh đầu của {header_tag} đưa bóng đi vọt xà ngang trong gang tấc",
+                    f"trung vệ đối phương đã bật cao phá bóng giải nguy chịu quả ném biên",
+                    f"hàng thủ số đông đã bọc lót giải tỏa áp lực thành công"
+                ]
+                match.add_event(
+                    minute,
+                    f"🚩 Phạt góc! Phút {minute}: {taker_tag} ({att_team.name}) thực hiện quả phạt góc câu bổng vào vòng 16m50, {random.choice(corner_outcomes)}.",
+                    event_type="corner_kick",
+                    data={
+                        "is_home": is_home_corner,
+                        "taker": taker.name,
+                        "header_player": header_player.name,
+                        "side": corner_side
+                    }
+                )
+
+        # ==========================================================
+        # NHÁNH 5: NÉM BIÊN CHIẾN THUẬT (THROW-IN) (~11% mỗi phút)
+        # ==========================================================
+        elif roll < 0.74:
+            is_home_throw = (random.random() < home_prob)
+            att_team = home_team if is_home_throw else away_team
+            def_team = away_team if is_home_throw else home_team
+            att_players = home_active if is_home_throw else away_active
+
+            if not att_players:
+                continue
+
+            # Người ném biên thường là hậu vệ biên (LB, RB, LWB, RWB)
+            thrower_candidates = [p for p in att_players if getattr(p, 'position', '') in ['LB', 'RB', 'LWB', 'RWB', 'LM', 'RM']]
+            thrower = random.choice(thrower_candidates) if thrower_candidates else att_players[0]
+            thrower_pos = getattr(thrower, 'position', 'DF')
+            thrower_tag = f"[{thrower_pos}] {thrower.name}"
+
+            # Người nhận bóng (tiền vệ hoặc tiền đạo cánh)
+            receiver_candidates = [p for p in att_players if p.name != thrower.name and getattr(p, 'position', '') in ['CM', 'CAM', 'LW', 'RW', 'CDM']]
+            receiver = random.choice(receiver_candidates) if receiver_candidates else att_players[1]
+            receiver_pos = getattr(receiver, 'position', 'MF')
+            receiver_tag = f"[{receiver_pos}] {receiver.name}"
+
+            throw_side = "top" if thrower_pos in ['LB', 'LWB', 'LM', 'LW'] else "bottom"
+
+            throw_descs = [
+                f"ném bóng nhanh cho {receiver_tag} ban bật đập nhả thoát pressing dọc hành lang biên",
+                f"thực hiện quả ném biên mạnh (Long Throw-in) thẳng vào nách vòng cấm địa",
+                f"phối hợp ném biên chiến thuật giữ quyền kiểm soát bóng"
+            ]
+            match.add_event(
+                minute,
+                f"📐 Ném biên! Phút {minute}: {thrower_tag} ({att_team.name}) {random.choice(throw_descs)}.",
+                event_type="throw_in",
+                data={
+                    "is_home": is_home_throw,
+                    "thrower": thrower.name,
+                    "receiver": receiver.name,
+                    "side": throw_side
+                }
+            )
+
+        # ==========================================================
+        # NHÁNH 6: ĐÁ PHẠT TRỰC TIẾP HÀNG RÀO (FREE KICK) (~8% mỗi phút)
+        # ==========================================================
+        elif roll < 0.82:
+            is_home_fk = (random.random() < home_prob)
+            att_team = home_team if is_home_fk else away_team
+            def_team = away_team if is_home_fk else home_team
+            att_players = home_active if is_home_fk else away_active
+            def_players = away_active if is_home_fk else home_active
+
+            if not att_players or not def_players:
+                continue
+
+            # Chuyên gia sút phạt (CAM, ST, RW, LW, CM)
+            fk_takers = [p for p in att_players if getattr(p, 'position', '') in ['CAM', 'ST', 'RW', 'LW', 'CM']]
+            taker = random.choice(fk_takers) if fk_takers else att_players[0]
+            taker_pos = getattr(taker, 'position', 'CAM')
+            taker_tag = f"[{taker_pos}] {taker.name}"
+
+            fk_dist = random.randint(20, 28)
+            gk = next((p for p in def_players if getattr(p, 'position', '') == 'GK'), def_players[0])
+            gk_tag = f"[GK] {gk.name}"
+
+            # Tỉ lệ thành bàn từ đá phạt hàng rào (~14%)
+            is_fk_goal = (random.random() < 0.14)
+            if is_fk_goal:
+                if is_home_fk:
+                    match.home_goals += 1
+                    match.shots_home += 1
+                    match.target_home += 1
+                else:
+                    match.away_goals += 1
+                    match.shots_away += 1
+                    match.target_away += 1
+                taker.goals += 1
+
+                match.add_event(
+                    minute,
+                    f"⚽ SIÊU PHẨM ĐÁ PHẠT! Phút {minute}: Từ cự ly {fk_dist}m, {taker_tag} ({att_team.name}) vẽ nên đường cong cầu vồng tuyệt mỹ qua hàng rào găm thẳng vào góc chữ A! Tỉ số {match.home_goals}-{match.away_goals}",
+                    event_type="goal",
+                    data={
+                        "is_home": is_home_fk,
+                        "shooter": taker.name,
+                        "dist": fk_dist,
+                        "zone": f"Đá phạt hàng rào ({fk_dist}m)",
+                        "pos": taker_pos
+                    }
+                )
+            else:
+                if is_home_fk:
+                    match.shots_home += 1
+                else:
+                    match.shots_away += 1
+
+                fk_reasons = [
+                    f"đưa bóng lượn qua hàng rào nhưng chệch cột dọc trong gang tấc",
+                    f"bị thủ môn {gk_tag} bay người đấm bóng chịu phạt góc",
+                    f"đập trúng hàng rào chắn bật ngược trở lại"
+                ]
+                match.add_event(
+                    minute,
+                    f"🎯 Đá phạt! Phút {minute}: {taker_tag} ({att_team.name}) sút phạt hàng rào cự ly {fk_dist}m, {random.choice(fk_reasons)}.",
+                    event_type="free_kick",
+                    data={
+                        "is_home": is_home_fk,
+                        "taker": taker.name,
+                        "dist": fk_dist
+                    }
                 )
 
     return match

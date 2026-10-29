@@ -1,37 +1,40 @@
 @echo off
-chcp 65001 > nul
-title Football Manager Web - FC Mobile Edition
-cls
+setlocal
+cd /d "%~dp0"
+title Football Manager Web
 
 echo ========================================================
-echo       FOOTBALL MANAGER WEB - PHIÊN BẢN FC MOBILE 24/25
+echo   FOOTBALL MANAGER WEB - PHIEN BAN FC MOBILE 24/25
 echo ========================================================
 echo.
 
-:: [1] Dọn dẹp cổng 5000 và các tiến trình cũ
-echo [1/3] Đang kiểm tra và giải phóng cổng kết nối...
-for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":5000" ^| findstr "LISTENING"') do (
-    taskkill /f /pid %%a >nul 2>&1
-)
+:: [1] Giai phong cong 5000 va dong cac tien trinh cu
+echo [1/3] Dang kiem tra va giai phong cong 5000...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Get-NetTCPConnection -LocalPort 5000 -State Listen -EA Stop | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -EA 0 } } catch {}; exit 0" >nul 2>&1
 taskkill /f /im FootballManager.exe >nul 2>&1
 taskkill /f /im run.exe >nul 2>&1
 
-:: [2] Kiểm tra thư viện
-echo [2/3] Đang chuẩn bị hệ thống game...
-python -m pip install -r requirements.txt --quiet --disable-pip-version-check >nul 2>&1
+:: [2] Kiem tra thu vien can thiet
+echo [2/3] Dang kiem tra thu vien...
+python -c "import flask, flask_sqlalchemy" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Dang cai dat cac thu vien can thiet...
+    python -m pip install -r requirements.txt --disable-pip-version-check
+)
 
-:: [3] Tự động kích hoạt mở Tab Trình duyệt Web
-echo [3/3] Đang mở Tab trình duyệt web...
-start "" http://127.0.0.1:5000
-
+:: [3] Khoi chay Game Server (app.py se tu dong mo trinh duyet)
+echo [3/3] Dang khoi dong Game Server...
 echo.
 echo ========================================================
-echo  🚀 GAME ĐÃ SẴN SÀNG TẠI: http://127.0.0.1:5000
-echo  🛡️ Giao diện Đội Hình: http://127.0.0.1:5000/squad
-echo  (Vui lòng GIỮ cửa sổ này khi đang chơi game)
+echo   GAME DA SAN SANG TAI: http://127.0.0.1:5000
+echo   Giao dien Doi Hinh:   http://127.0.0.1:5000/squad
+echo   Vui long khong dong cua so nay trong khi choi game!
 echo ========================================================
 echo.
 
 python app.py
-
-pause
+if %errorlevel% neq 0 (
+    echo.
+    echo [LOI] Khong the khoi chay game!
+    pause
+)

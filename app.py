@@ -20,11 +20,35 @@ import sound
 app = Flask(__name__)
 app.secret_key = 'doimaykhongla'
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///football_manager.db'
+# Cấu hình môi trường lưu trữ (Vercel Serverless vs Môi trường máy cục bộ)
+IS_VERCEL = bool(os.environ.get('VERCEL'))
+if IS_VERCEL:
+    db_path = '/tmp/football_manager.db'
+    upload_folder = '/tmp/uploads'
+    data_folder = '/tmp/data'
+    # Tự động sao chép cơ sở dữ liệu mẫu có sẵn sang /tmp khi chạy trên Vercel
+    if not os.path.exists(db_path):
+        src_db = os.path.join(app.root_path, 'instance', 'football_manager.db')
+        if os.path.exists(src_db):
+            import shutil
+            try:
+                shutil.copy2(src_db, db_path)
+            except Exception:
+                pass
+else:
+    instance_dir = os.path.join(app.root_path, 'instance')
+    os.makedirs(instance_dir, exist_ok=True)
+    db_path = os.path.join(instance_dir, 'football_manager.db')
+    upload_folder = os.path.join(app.root_path, 'static', 'uploads')
+    data_folder = os.path.join(app.root_path, 'data')
+
+os.makedirs(upload_folder, exist_ok=True)
+os.makedirs(data_folder, exist_ok=True)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static/uploads')
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs(os.path.join(app.root_path, 'data'), exist_ok=True)
+app.config['UPLOAD_FOLDER'] = upload_folder
+app.config['DATA_FOLDER'] = data_folder
 
 db.init_app(app)
 
@@ -518,7 +542,12 @@ def auto_select_xi(players, formation):
     formation_map = {
         '4-3-3': ['GK', 'LB', 'CB', 'CB', 'RB', 'LW', 'CM', 'CM', 'CM', 'RW', 'ST'],
         '4-2-3-1': ['GK', 'LB', 'CB', 'CB', 'RB', 'CDM', 'CDM', 'LW', 'CAM', 'RW', 'ST'],
-        '5-3-2': ['GK', 'LWB', 'CB', 'CB', 'CB', 'RWB', 'CM', 'CM', 'CM', 'ST', 'ST']
+        '4-4-2': ['GK', 'LB', 'CB', 'CB', 'RB', 'LM', 'CM', 'CM', 'RM', 'ST', 'ST'],
+        '4-3-2-1': ['GK', 'LB', 'CB', 'CB', 'RB', 'CDM', 'CM', 'CM', 'CAM', 'CAM', 'ST'],
+        '3-4-3': ['GK', 'CB', 'CB', 'CB', 'LM', 'CM', 'CM', 'RM', 'LW', 'RW', 'ST'],
+        '3-5-2': ['GK', 'CB', 'CB', 'CB', 'LWB', 'CDM', 'CM', 'CM', 'RWB', 'ST', 'ST'],
+        '5-3-2': ['GK', 'LWB', 'CB', 'CB', 'CB', 'RWB', 'CM', 'CM', 'CM', 'ST', 'ST'],
+        '5-4-1': ['GK', 'LWB', 'CB', 'CB', 'CB', 'RWB', 'LM', 'CM', 'CM', 'RM', 'ST']
     }
     required_positions = formation_map.get(formation, formation_map['4-3-3'])
 
@@ -536,9 +565,9 @@ def auto_select_xi(players, formation):
             stat_score = player.defense * 0.7 + player.speed * 0.2 + player.attack * 0.1
         elif position in ['CDM', 'CM']:
             stat_score = player.defense * 0.4 + player.attack * 0.4 + player.speed * 0.2
-        elif position in ['LW', 'RW', 'CAM']:
+        elif position in ['LW', 'RW', 'CAM', 'LM', 'RM']:
             stat_score = player.attack * 0.5 + player.speed * 0.4 + player.defense * 0.1
-        elif position == 'ST':
+        elif position in ['ST', 'CF']:
             stat_score = player.attack * 0.6 + player.speed * 0.3 + player.defense * 0.1
         else:
             stat_score = player.overall
@@ -2061,6 +2090,7 @@ def play_match():
             'ball_x': 50, 'ball_y': 50,
             'shots_home': 0, 'shots_away': 0,
             'target_home': 0, 'target_away': 0,
+            'corners_home': 0, 'corners_away': 0,
             'fouls_home': 0, 'fouls_away': 0,
             'yellow_home': 0, 'yellow_away': 0,
             'red_home': 0, 'red_away': 0,
@@ -2220,6 +2250,8 @@ def tick():
     match.yellow_away = match_data.get('yellow_away', 0)
     match.red_home = match_data.get('red_home', 0)
     match.red_away = match_data.get('red_away', 0)
+    match.corners_home = match_data.get('corners_home', 0)
+    match.corners_away = match_data.get('corners_away', 0)
 
     events_count_before = len(match.events)
     prev_goals = match.home_goals + match.away_goals
@@ -2257,6 +2289,8 @@ def tick():
     match_data['yellow_away'] = match.yellow_away
     match_data['red_home'] = match.red_home
     match_data['red_away'] = match.red_away
+    match_data['corners_home'] = getattr(match, 'corners_home', 0)
+    match_data['corners_away'] = getattr(match, 'corners_away', 0)
 
     match_data['away_players'] = [
         {'name': player.name, 'position': player.position, 'overall': player.overall,
@@ -2324,6 +2358,8 @@ def tick():
             'shots_away': match.shots_away,
             'target_home': match.target_home,
             'target_away': match.target_away,
+            'corners_home': getattr(match, 'corners_home', 0),
+            'corners_away': getattr(match, 'corners_away', 0),
             'fouls_home': match.fouls_home,
             'fouls_away': match.fouls_away,
             'yellow_home': match.yellow_home,
@@ -2335,6 +2371,16 @@ def tick():
         'current_minute': next_minute,
         'positions': position_map,
         'home_players': home_players_stamina,
+        'away_players': [
+            {
+                'id': idx + 11,
+                'name': p.name,
+                'stamina': p.stamina,
+                'yellow_cards': getattr(p, 'yellow_cards', 0),
+                'red_cards': getattr(p, 'red_cards', 0)
+            }
+            for idx, p in enumerate(opponent.players[:11])
+        ],
         'half': match_data.get('half', 1),
         'phase': match_data.get('phase', 'first_half'),
         'halftime': match_data.get('phase') == 'halftime',
@@ -2347,13 +2393,13 @@ def tick():
 def start_second_half():
     match_data = session.get('live_match')
     if not match_data or match_data.get('phase') != 'halftime':
-        return redirect(url_for('live_match'))
+        return jsonify({'success': False, 'error': 'Not halftime'}), 400
     match_data['phase'] = 'second_half'
     match_data['half'] = 2
     match_data['events'].append({'minute': 46, 'description': '▶️ Hiệp 2 bắt đầu!'})
     session['live_match'] = match_data
     session.modified = True
-    return redirect(url_for('live_match'))
+    return jsonify({'success': True, 'half': 2})
 
 
 @app.route('/get_players')
@@ -2437,7 +2483,12 @@ def substitute_api():
             'description': f'Phút {cur_min} – 🔄 {player_out.name} ra → {player_in.name} vào'
         })
         session.modified = True
-        return jsonify({'success': True, 'subs_used': subs_used})
+        return jsonify({
+            'success': True,
+            'subs_used': subs_used,
+            'player_out': {'id': player_out.id, 'name': player_out.name},
+            'player_in': {'id': player_in.id, 'name': player_in.name, 'stamina': getattr(player_in, 'stamina', 100), 'position': getattr(player_in, 'position', '')}
+        })
     return jsonify({'error': 'Cầu thủ không hợp lệ'}), 400
 
 
@@ -2691,4 +2742,4 @@ def auto_open_browser():
 if __name__ == '__main__':
     import threading
     threading.Thread(target=auto_open_browser, daemon=True).start()
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=False)

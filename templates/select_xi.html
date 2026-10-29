@@ -791,11 +791,14 @@
         <div class="fc-modal-dialog">
             <div class="modal-hdr">⚙️ CHỌN SƠ ĐỒ CHIẾN THUẬT</div>
             <div class="opt-grid">
-                <div class="opt-card" onclick="selectFormation('4-3-3')">4-3-3 (Tấn Công Cánh)</div>
-                <div class="opt-card" onclick="selectFormation('4-2-3-1')">4-2-3-1 (Kiểm Soát Trung Tuyến)</div>
-                <div class="opt-card" onclick="selectFormation('5-3-2')">5-3-2 (Phòng Ngự Phản Công)</div>
+                <div class="opt-card" onclick="selectFormation('4-3-3')">4-3-3 (Tấn Công Cánh / Tiki-taka)</div>
+                <div class="opt-card" onclick="selectFormation('4-2-3-1')">4-2-3-1 (Double Pivot & Kiểm Soát)</div>
                 <div class="opt-card" onclick="selectFormation('4-4-2')">4-4-2 (Cân Bằng Truyền Thống)</div>
-                <div class="opt-card" onclick="selectFormation('3-5-2')">3-5-2 (Tấn Công Áp Đảo)</div>
+                <div class="opt-card" onclick="selectFormation('4-3-2-1')">4-3-2-1 (Cây Thông Ancelotti)</div>
+                <div class="opt-card" onclick="selectFormation('3-4-3')">3-4-3 (Tấn Công Áp Đảo 3 Tiền Đạo)</div>
+                <div class="opt-card" onclick="selectFormation('3-5-2')">3-5-2 (Song Sát & Tiền Vệ Cánh)</div>
+                <div class="opt-card" onclick="selectFormation('5-3-2')">5-3-2 (Phòng Ngự Chiều Sâu 3 CB)</div>
+                <div class="opt-card" onclick="selectFormation('5-4-1')">5-4-1 (Đổ Bê Tông / Xe Bus)</div>
             </div>
             <button class="dock-action-btn" style="justify-content:center;" onclick="closeModals()">ĐÓNG</button>
         </div>
@@ -810,6 +813,8 @@
                 <div class="opt-card" onclick="selectTactic('Can bang')">⚖️ Cân Bằng Nhịp Độ</div>
                 <div class="opt-card" onclick="selectTactic('Phong thu')">🧱 Phòng Ngự Phản Công</div>
                 <div class="opt-card" onclick="selectTactic('Tiki-Taka')">🪄 Kiểm Soát Tiki-Taka</div>
+                <div class="opt-card" onclick="selectTactic('Phan cong')">🚀 Phản Công Chớp Nhoáng</div>
+                <div class="opt-card" onclick="selectTactic('Xe bus')">🚌 Xe Bus 2 Tầng</div>
             </div>
             <button class="dock-action-btn" style="justify-content:center;" onclick="closeModals()">ĐÓNG</button>
         </div>
@@ -872,6 +877,25 @@
                     { row: 'FW', slots: ['ST', 'ST'] },
                     { row: 'MF', slots: ['LM', 'CDM', 'CAM', 'CDM', 'RM'] },
                     { row: 'DF', slots: ['CB', 'CB', 'CB'] },
+                    { row: 'GK', slots: ['GK'] }
+                ],
+                '4-3-2-1': [
+                    { row: 'FW', slots: ['ST'] },
+                    { row: 'AM', slots: ['CAM', 'CAM'] },
+                    { row: 'MF', slots: ['CM', 'CDM', 'CM'] },
+                    { row: 'DF', slots: ['LB', 'CB', 'CB', 'RB'] },
+                    { row: 'GK', slots: ['GK'] }
+                ],
+                '3-4-3': [
+                    { row: 'FW', slots: ['LW', 'ST', 'RW'] },
+                    { row: 'MF', slots: ['LM', 'CM', 'CM', 'RM'] },
+                    { row: 'DF', slots: ['CB', 'CB', 'CB'] },
+                    { row: 'GK', slots: ['GK'] }
+                ],
+                '5-4-1': [
+                    { row: 'FW', slots: ['ST'] },
+                    { row: 'MF', slots: ['LM', 'CM', 'CM', 'RM'] },
+                    { row: 'DF', slots: ['LWB', 'CB', 'CB', 'CB', 'RWB'] },
                     { row: 'GK', slots: ['GK'] }
                 ]
             };

@@ -789,9 +789,9 @@
                 <!-- Chỉnh tốc độ trận đấu -->
                 <div class="speed-control-strip">
                     <span style="font-size: 0.7rem; color: var(--text-muted); font-weight: 700;">TỐC ĐỘ:</span>
-                    <button class="btn-action-tile btn-speed active" style="flex:1; padding:4px;" onclick="setSpeed(2600, this)">1x (2.5p/hiệp)</button>
-                    <button class="btn-action-tile btn-speed" style="flex:0.6; padding:4px;" onclick="setSpeed(1200, this)">2x</button>
-                    <button class="btn-action-tile btn-speed" style="flex:0.6; padding:4px;" onclick="setSpeed(500, this)">4x</button>
+                    <button class="btn-action-tile btn-speed active" style="flex:1; padding:4px;" onclick="setSpeed(3200, this)">1x (3.2s/phút)</button>
+                    <button class="btn-action-tile btn-speed" style="flex:0.6; padding:4px;" onclick="setSpeed(1600, this)">2x</button>
+                    <button class="btn-action-tile btn-speed" style="flex:0.6; padding:4px;" onclick="setSpeed(800, this)">4x</button>
                 </div>
 
                 <!-- Thanh chỉnh âm thanh khán đài & SFX -->
@@ -1281,6 +1281,62 @@ function playGkSaveSound() {
     } catch(e) {}
 }
 
+// --- TIẾNG BÓNG DỘI XÀ NGANG / CỘT DỌC KIM LOẠI (METALLIC WOODWORK CLANG/PING) ---
+function playWoodworkSound() {
+    if (isMuted) return;
+    try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        // 1. Cú va chạm lực ban đầu (Thud)
+        const slapOsc = ctx.createOscillator();
+        const slapGain = ctx.createGain();
+        slapOsc.type = 'triangle';
+        slapOsc.frequency.setValueAtTime(280, now);
+        slapOsc.frequency.exponentialRampToValueAtTime(70, now + 0.12);
+        slapGain.gain.setValueAtTime(userVolume * 0.75, now);
+        slapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        slapOsc.connect(slapGain);
+        slapGain.connect(ctx.destination);
+        slapOsc.start(now);
+        slapOsc.stop(now + 0.12);
+
+        // 2. Tiếng ngân vang kim loại sắc bén (Metallic dissonance 1150Hz, 1720Hz, 2480Hz)
+        [1150, 1720, 2480].forEach((freq, idx) => {
+            const metalOsc = ctx.createOscillator();
+            const metalGain = ctx.createGain();
+            metalOsc.type = 'sine';
+            metalOsc.frequency.setValueAtTime(freq, now);
+            const initialVol = userVolume * (0.50 / (idx + 1));
+            metalGain.gain.setValueAtTime(initialVol, now);
+            metalGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.58);
+            metalOsc.connect(metalGain);
+            metalGain.connect(ctx.destination);
+            metalOsc.start(now);
+            metalOsc.stop(now + 0.58);
+        });
+    } catch(e) {}
+}
+
+// --- TIẾNG BÍP ĐIỆN TỬ BẢNG BÙ GIỜ & MÀN HÌNH VAR (DIGITAL CHIME / BEEP) ---
+function playDigitalBeep() {
+    if (isMuted) return;
+    try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, now); // Tone A5
+        osc.frequency.setValueAtTime(1760, now + 0.08); // Tone A6
+        gain.gain.setValueAtTime(userVolume * 0.40, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.28);
+    } catch(e) {}
+}
+
 // ==================== 2. KHỞI TẠO CANVAS, PIXIJS ENGINE & TỌA ĐỘ ====================
 const canvas = document.getElementById('pitchCanvas');
 const W = canvas.width;
@@ -1458,7 +1514,26 @@ const awayPlayers = awayBase.map((p, i) => {
     };
 });
 
-const referee = { x: W / 2 + 30, y: H / 2 - 40, targetX: W / 2, targetY: H / 2 };
+const referee = {
+    x: W / 2 + 30, y: H / 2 - 40,
+    targetX: W / 2, targetY: H / 2,
+    isControlled: false,
+    gestureTimer: 0,
+    gestureType: null
+};
+
+let isPenaltySequence = false;
+
+const varState = {
+    active: false,
+    type: 'offside', // 'offside' | 'penalty'
+    decision: 'confirmed', // 'disallowed' | 'confirmed'
+    player: '',
+    scanX: 0,
+    timer: 0,
+    isHome: true
+};
+
 const allPlayers = [...homePlayers, ...awayPlayers];
 
 const ball = {
@@ -1473,6 +1548,7 @@ const ball = {
     isFlying: false,
     speed: 0.18,
     carrier: null,
+    receiver: null,
     isShooting: false,
     spinAngle: 0,
     onArrival: null,
@@ -1485,10 +1561,17 @@ function passBall(targetX, targetY, options = {}) {
     targetY = Math.max(18, Math.min(H - 18, targetY));
 
     ball.carrier = null;
+    ball.receiver = options.receiver || null;
     ball.flightStartX = ball.x;
     ball.flightStartY = ball.y;
     ball.targetX = targetX;
     ball.targetY = targetY;
+
+    if (ball.receiver) {
+        ball.receiver.isReceiving = true;
+        ball.receiver.targetX = targetX;
+        ball.receiver.targetY = targetY;
+    }
 
     const dist = Math.hypot(targetX - ball.flightStartX, targetY - ball.flightStartY);
     const type = options.type || 'pass';
@@ -1497,16 +1580,13 @@ function passBall(targetX, targetY, options = {}) {
     ball.flightPeakZ = options.peakZ !== undefined ? options.peakZ : (type === 'shot' ? 14 : (type === 'corner' ? 28 : (type === 'lob' ? 16 : 0)));
     ball.flightColor = options.color || (type === 'shot' ? '#f59e0b' : (type === 'corner' ? '#38bdf8' : (type === 'lob' ? '#10b981' : '#38bdf8')));
 
-    // Tốc độ bóng (px/frame ở 60fps) được kiểm soát kỹ lưỡng:
-    // Chuyền bóng: 7.2 px/frame (430 px/s) -> Đường chuyền 200px mất ~28 frames (0.46s) - Mắt người nhìn cực rõ!
-    // Dứt điểm sút bóng: 11.2 px/frame (670 px/s) -> Căng, uy lực nhưng thấy rõ quỹ đạo bay vào khung thành!
-    let pxPerFrame = 7.5;
+    let pxPerFrame = 7.8;
     if (type === 'shot') pxPerFrame = options.speed || 11.2;
     else if (type === 'corner') pxPerFrame = options.speed || 8.2;
     else if (type === 'lob') pxPerFrame = options.speed || 7.0;
-    else pxPerFrame = options.speed || 7.5;
+    else pxPerFrame = options.speed || 7.8;
 
-    ball.totalFlightFrames = Math.max(12, Math.round(dist / pxPerFrame));
+    ball.totalFlightFrames = Math.max(10, Math.round(dist / pxPerFrame));
     ball.flightFrame = 0;
     ball.isFlying = true;
     ball.onArrival = typeof options.onArrival === 'function' ? options.onArrival : null;
@@ -1588,6 +1668,22 @@ function spawnDribbleParticles(x, y, baseColor = '#38bdf8') {
             color: [baseColor, '#fde047', '#ffffff', '#c084fc', '#38bdf8'][Math.floor(Math.random()*5)],
             alpha: 1.0,
             radius: 2 + Math.random() * 2.8
+        });
+    }
+}
+
+// Bụi tia lửa phát sáng khi bóng đập xà ngang/cột dọc (Metallic Spark Particles)
+function spawnWoodworkSparkParticles(x, y) {
+    for (let i = 0; i < 35; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 2.8 + Math.random() * 6.5;
+        particles.push({
+            x: x, y: y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            color: ['#fde047', '#f59e0b', '#ffffff', '#fbbf24', '#eab308'][Math.floor(Math.random() * 5)],
+            radius: 1.5 + Math.random() * 2.5,
+            alpha: 1.0
         });
     }
 }
@@ -1789,6 +1885,20 @@ function drawPitch() {
     drawGlossyPost(W - 25, goalTopY);
     drawGlossyPost(W - 25, goalBotY);
 
+    // 6. Bục màn hình VAR bên đường biên giữa sân (Pitchside VAR Monitor Stand)
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(W / 2 - 14, 4, 28, 14);
+    ctx.strokeStyle = varState.active ? '#06b6d4' : '#475569';
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(W / 2 - 14, 4, 28, 14);
+    ctx.fillStyle = varState.active ? '#06b6d4' : '#0f172a';
+    ctx.fillRect(W / 2 - 12, 6, 24, 10);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 7px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('VAR', W / 2, 11);
+
     ctx.restore();
 }
 
@@ -1801,6 +1911,24 @@ function updateSimulation() {
 
     const ballX = ball.x;
     const ballY = ball.y;
+
+    // Chế độ sút luân lưu / 11m Penalty: Cố định vị trí toàn đội, chỉ di chuyển Taker, Thủ môn & Trọng tài
+    if (isPenaltySequence) {
+        allPlayers.forEach(p => {
+            if (p.isDiving) {
+                p.x += (p.diveTargetX - p.x) * (p.diveSpeed || 0.18);
+                p.y += (p.diveTargetY - p.y) * (p.diveSpeed || 0.18);
+                p.diveTimer--;
+                if (p.diveTimer <= 0) p.isDiving = false;
+            } else {
+                p.x += (p.targetX - p.x) * 0.06;
+                p.y += (p.targetY - p.y) * 0.06;
+            }
+        });
+        referee.x += (referee.targetX - referee.x) * 0.06;
+        referee.y += (referee.targetY - referee.y) * 0.06;
+        return;
+    }
 
     // Trạng thái kiểm soát bóng thực tế của 2 đội
     const carrierTeam = ball.carrier ? ball.carrier.team : null;
@@ -1847,12 +1975,13 @@ function updateSimulation() {
             p.x += (p.targetX - p.x) * 0.10;
             p.y += (p.targetY - p.y) * 0.10;
         } else if (p.hasBall && p.pos !== 'GK') {
-            // CẦU THỦ CẦM BÓNG (NGOẠI TRỪ THỦ MÔN): Tịnh tiến trong sân theo hướng tấn công
-            const forwardAnchor = isHome ? Math.min(W - 130, p.baseX + 130 + tacticShift) : Math.max(130, p.baseX - 130 + tacticShift);
-            p.targetX = forwardAnchor + Math.sin(simClock * 2.5) * 8;
-            p.targetY = p.baseY + Math.cos(simClock * 2.0) * 10;
-            p.x += (p.targetX - p.x) * 0.048 * speedMult;
-            p.y += (p.targetY - p.y) * 0.048 * speedMult;
+            // CẦU THỦ CẦM BÓNG: Luôn dốc bóng tịnh tiến về phía khung thành đối phương
+            const attackDir = isHome ? 1 : -1;
+            const targetX = isHome ? Math.min(BOUNDS.maxX - 55, p.x + 32 + tacticShift * 0.4) : Math.max(BOUNDS.minX + 55, p.x - 32 + tacticShift * 0.4);
+            p.targetX = targetX;
+            p.targetY = Math.max(BOUNDS.minY + 35, Math.min(BOUNDS.maxY - 35, p.y + Math.sin(simClock * 2.2) * 5));
+            p.x += (p.targetX - p.x) * 0.052 * speedMult;
+            p.y += (p.targetY - p.y) * 0.052 * speedMult;
         } else {
             // AI DI CHUYỂN THEO VỊ TRÍ, SƠ ĐỒ & BẢO TOÀN KHỐI THỦ Ở NHÀ (REST DEFENSE)
             if (p.pos === 'GK') {
@@ -2011,44 +2140,46 @@ function updateSimulation() {
         if (!Number.isFinite(p.y)) p.y = p.baseY;
     });
 
-    // LỰC ĐẨY TÁCH NHAU TOÀN DIỆN CHO 22 CẦU THỦ (KHÔNG BAO GIỜ CHỒNG ĐÈ, DÍNH NỐI VÀO NHAU)
-    const minDistance = 28; // Bán kính token R=10.5 -> đường kính 21px -> khoảng cách an toàn tối thiểu 28px
+    // LỰC TÁCH CẦU THỦ MỀM MẠI (SOFT ANTI-CLUSTERING - KHÔNG RUNG LẮC, KHÔNG JITTER)
+    const minDistance = 23; // Bán kính token 10.5 -> đường kính 21px
     for (let i = 0; i < allPlayers.length; i++) {
+        const p1 = allPlayers[i];
+        if (p1.hasBall || p1.isDribbling || p1.pos === 'GK') continue;
         for (let j = i + 1; j < allPlayers.length; j++) {
-            const p1 = allPlayers[i];
             const p2 = allPlayers[j];
+            if (p2.hasBall || p2.isDribbling || p2.pos === 'GK') continue;
+
             let dx = p1.x - p2.x;
             let dy = p1.y - p2.y;
-            let dist = Math.hypot(dx, dy);
-            if (dist < minDistance) {
-                // Nếu 2 cầu thủ đứng trùng khít 1 điểm
-                if (dist < 0.5) {
-                    dx = (p1.id < p2.id ? -1 : 1) * 2;
-                    dy = (p1.team === 'home' ? -1 : 1) * 2;
-                    dist = Math.hypot(dx, dy);
-                }
-                const push = (minDistance - dist) * 0.16;
+            let distSq = dx * dx + dy * dy;
+            if (distSq < minDistance * minDistance && distSq > 0.01) {
+                let dist = Math.sqrt(distSq);
+                const push = (minDistance - dist) * 0.045; // Đẩy êm ái, mượt mà
                 const nx = (dx / dist) * push;
                 const ny = (dy / dist) * push;
-                if (!p1.hasBall && !p1.isDribbling && p1.pos !== 'GK') {
-                    p1.x = Math.max(PITCH_BOUNDS.minX, Math.min(PITCH_BOUNDS.maxX, p1.x + nx));
-                    p1.y = Math.max(PITCH_BOUNDS.minY, Math.min(PITCH_BOUNDS.maxY, p1.y + ny));
-                }
-                if (!p2.hasBall && !p2.isDribbling && p2.pos !== 'GK') {
-                    p2.x = Math.max(PITCH_BOUNDS.minX, Math.min(PITCH_BOUNDS.maxX, p2.x - nx));
-                    p2.y = Math.max(PITCH_BOUNDS.minY, Math.min(PITCH_BOUNDS.maxY, p2.y - ny));
-                }
+                p1.x = Math.max(PITCH_BOUNDS.minX, Math.min(PITCH_BOUNDS.maxX, p1.x + nx));
+                p1.y = Math.max(PITCH_BOUNDS.minY, Math.min(PITCH_BOUNDS.maxY, p1.y + ny));
+                p2.x = Math.max(PITCH_BOUNDS.minX, Math.min(PITCH_BOUNDS.maxX, p2.x - nx));
+                p2.y = Math.max(PITCH_BOUNDS.minY, Math.min(PITCH_BOUNDS.maxY, p2.y - ny));
             }
         }
     }
 
     // TRỌNG TÀI CHÍNH: Giữ cự ly quan sát hợp lý ở trung lộ, trong sân (không ra biên)
-    referee.targetX = Math.max(180, Math.min(W - 180, ballX + (ballX < W / 2 ? 55 : -55)));
-    referee.targetY = Math.max(80, Math.min(H - 80, ballY + (ballY < H / 2 ? 50 : -50)));
-    referee.x += (referee.targetX - referee.x) * 0.035;
-    referee.y += (referee.targetY - referee.y) * 0.035;
-    referee.x = Math.max(140, Math.min(W - 140, referee.x));
-    referee.y = Math.max(65, Math.min(H - 65, referee.y));
+    if (!referee.isControlled) {
+        referee.targetX = Math.max(180, Math.min(W - 180, ballX + (ballX < W / 2 ? 55 : -55)));
+        referee.targetY = Math.max(80, Math.min(H - 80, ballY + (ballY < H / 2 ? 50 : -50)));
+    }
+    referee.x += (referee.targetX - referee.x) * 0.045;
+    referee.y += (referee.targetY - referee.y) * 0.045;
+    referee.x = Math.max(120, Math.min(W - 120, referee.x));
+    referee.y = Math.max(25, Math.min(H - 45, referee.y));
+
+    // Cập nhật trạng thái quét radar 3D VAR
+    if (varState.active) {
+        varState.timer--;
+        varState.scanX = (varState.scanX + 9) % W;
+    }
 
     // QUẢ BÓNG KHI ĐƯỢC DẪN HOẶC ĐANG BAY
     if (ball.carrier && !ball.isFlying) {
@@ -2071,6 +2202,12 @@ function updateSimulation() {
         ball.flightFrame++;
         const t = Math.min(1.0, ball.flightFrame / ball.totalFlightFrames);
 
+        // Động thái bám sát người nhận bóng nếu có
+        if (ball.receiver) {
+            ball.targetX = ball.receiver.x;
+            ball.targetY = ball.receiver.y;
+        }
+
         ball.x = ball.flightStartX + (ball.targetX - ball.flightStartX) * t;
         ball.y = ball.flightStartY + (ball.targetY - ball.flightStartY) * t;
 
@@ -2087,6 +2224,14 @@ function updateSimulation() {
             ball.isFlying = false;
             ball.isShooting = false;
             ball.z = 0;
+            if (ball.receiver) {
+                ball.receiver.isReceiving = false;
+                ball.receiver.hasBall = true;
+                ball.carrier = ball.receiver;
+                ball.x = ball.receiver.x;
+                ball.y = ball.receiver.y;
+                ball.receiver = null;
+            }
             if (typeof ball.onArrival === 'function') {
                 const cb = ball.onArrival;
                 ball.onArrival = null;
@@ -2109,36 +2254,42 @@ function updateSimulation() {
     if (ball.trail.length > 16) ball.trail.shift();
 
     // PHỐI HỢP BAN BẬT BÓNG SỐNG TỰ ĐỘNG (AUTONOMOUS OPEN-PLAY PASSING)
-    if (ball.carrier && !ball.carrier.isDribbling && !ball.isFlying && !ball.isShooting && !isPaused && !isMatchFinished && !isHalftime) {
+    if (ball.carrier && !ball.carrier.isDribbling && !ball.isFlying && !ball.isShooting && !isPaused && !isMatchFinished && !isHalftime && !isTikiTakaRunning) {
         ball.carrier.possessionTimer = (ball.carrier.possessionTimer || 0) + 1;
-        // Mỗi ~1.8s - 2.2s (115 frames), cầu thủ chủ động chuyền bóng cho đồng đội gần nhất
-        if (ball.carrier.possessionTimer > 115) {
+        // Mỗi ~1.6s - 2.0s, cầu thủ chủ động chuyền bóng cho đồng đội gần nhất
+        if (ball.carrier.possessionTimer > 105) {
             ball.carrier.possessionTimer = 0;
             const team = (ball.carrier.team === 'home') ? homePlayers : awayPlayers;
             const currentP = ball.carrier;
-            const candidates = team.filter(p => p.id !== currentP.id && p.pos !== 'GK' && (p.red_cards || 0) === 0);
-            if (candidates.length > 0) {
-                const sorted = candidates.map(p => ({
-                    p,
-                    dist: Math.hypot(p.x - currentP.x, p.y - currentP.y)
-                })).filter(item => item.dist >= 75 && item.dist <= 260)
-                  .sort((a, b) => a.dist - b.dist);
 
-                const targetMate = sorted.length > 0 ? sorted[0].p : candidates[Math.floor(Math.random() * candidates.length)];
-                if (targetMate) {
-                    currentP.hasBall = false;
-                    playKickSound(false);
-                    passBall(targetMate.x, targetMate.y, {
-                        type: 'pass',
-                        speed: 7.2,
-                        peakZ: 1.5,
-                        color: '#38bdf8',
-                        onArrival: () => {
-                            targetMate.hasBall = true;
-                            ball.carrier = targetMate;
-                            targetMate.possessionTimer = 0;
-                        }
-                    });
+            // Nếu chiến thuật đang là Tiki-Taka, có xác suất cao kích hoạt tam giác Tiki-Taka!
+            const teamTactic = (ball.carrier.team === 'home') ? (activeHomeTactic || "{{ match.tactic or 'Can bang' }}") : "{{ match.away_tactic or 'Can bang' }}";
+            if (teamTactic === 'Tiki-Taka' && Math.random() < 0.65) {
+                executeTikiTakaPlay(ball.carrier.team === 'home');
+            } else {
+                const candidates = team.filter(p => p.id !== currentP.id && p.pos !== 'GK' && (p.red_cards || 0) === 0);
+                if (candidates.length > 0) {
+                    const sorted = candidates.map(p => ({
+                        p,
+                        dist: Math.hypot(p.x - currentP.x, p.y - currentP.y)
+                    })).filter(item => item.dist >= 55 && item.dist <= 220)
+                      .sort((a, b) => a.dist - b.dist);
+
+                    const targetMate = sorted.length > 0 ? sorted[0].p : candidates[Math.floor(Math.random() * candidates.length)];
+                    if (targetMate) {
+                        currentP.hasBall = false;
+                        playKickSound(false);
+                        passBall(targetMate.x, targetMate.y, {
+                            type: 'pass',
+                            speed: 7.6,
+                            peakZ: 1.2,
+                            receiver: targetMate,
+                            color: (ball.carrier.team === 'home') ? '#38bdf8' : '#fb7185',
+                            onArrival: () => {
+                                targetMate.possessionTimer = 0;
+                            }
+                        });
+                    }
                 }
             }
         }
@@ -2281,7 +2432,55 @@ function drawEntities() {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('REF', referee.x, referee.y);
+
+    if (referee.gestureTimer > 0) {
+        referee.gestureTimer--;
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('📺', referee.x, referee.y - 14);
+    }
     ctx.restore();
+
+    // Tia quét laser 3D công nghệ VAR khi phòng VAR phân tích (3D Pitch Scan Line)
+    if (varState.active) {
+        ctx.save();
+        const grad = ctx.createLinearGradient(varState.scanX - 20, 0, varState.scanX + 20, 0);
+        grad.addColorStop(0, 'rgba(6, 182, 212, 0)');
+        grad.addColorStop(0.5, 'rgba(6, 182, 212, 0.65)');
+        grad.addColorStop(1, 'rgba(6, 182, 212, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(varState.scanX - 20, 20, 40, H - 40);
+
+        ctx.beginPath();
+        ctx.moveTo(varState.scanX, 20);
+        ctx.lineTo(varState.scanX, H - 20);
+        ctx.strokeStyle = '#a5f3fc';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#06b6d4';
+        ctx.shadowBlur = 12;
+        ctx.stroke();
+
+        const hudW = 340;
+        const hudH = 36;
+        const hudX = W / 2 - hudW / 2;
+        const hudY = 38;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+        ctx.strokeStyle = '#06b6d4';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.roundRect(hudX, hudY, hudW, hudH, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#06b6d4';
+        ctx.font = '900 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`🖥️ VAR: ${varState.type === 'offside' ? 'KIỂM TRA VIỆT VỊ BÀN THẮNG' : 'KIỂM TRA PHẠT ĐỀN 11M'}`, W / 2, hudY + 16);
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = 'bold 9.5px sans-serif';
+        ctx.fillText(`Cầu thủ: ${varState.player || 'Tiền đạo'} - Đang phân tích góc máy...`, W / 2, hudY + 30);
+        ctx.restore();
+    }
 
     // 22 Cầu thủ (R = 10.5px)
     const R = 10.5;
@@ -2700,6 +2899,17 @@ function initPixiScene() {
     drawPixiGlossyPost(25, goalBotY);
     drawPixiGlossyPost(W - 25, goalTopY);
     drawPixiGlossyPost(W - 25, goalBotY);
+
+    // 6. Bục màn hình VAR bên đường biên (Pitchside VAR Stand)
+    pitchGfx.lineStyle(1.4, 0x475569, 1);
+    pitchGfx.beginFill(0x1e293b, 1);
+    pitchGfx.drawRoundedRect(W / 2 - 14, 4, 28, 14, 3);
+    pitchGfx.endFill();
+    pitchGfx.lineStyle(0);
+    pitchGfx.beginFill(0x06b6d4, 1);
+    pitchGfx.drawRect(W / 2 - 10, 7, 20, 8);
+    pitchGfx.endFill();
+
     pixiApp.stage.addChild(pitchGfx);
 
     // 2. Tactical Triangles
@@ -3077,14 +3287,34 @@ function updatePixiScene() {
     ballGfx.drawCircle(ball.x, ballVisualY, 2.8);
     ballGfx.endFill();
 
-    // 6. Particles
+    // 6. Particles, Vanishing Spray & VAR 3D Scan Line
     particlesGfx.clear();
     particles.forEach(pt => {
-        const hexColor = parseInt(pt.color.replace('#', '0x'), 16) || 0xffffff;
+        const hexColor = parseInt((pt.color || '#ffffff').replace('#', '0x'), 16) || 0xffffff;
         particlesGfx.beginFill(hexColor, pt.alpha);
         particlesGfx.drawCircle(pt.x, pt.y, pt.radius);
         particlesGfx.endFill();
     });
+
+    if (foamSpots.length > 0) {
+        for (let i = foamSpots.length - 1; i >= 0; i--) {
+            const f = foamSpots[i];
+            f.alpha -= 0.0012;
+            if (f.alpha <= 0) {
+                foamSpots.splice(i, 1);
+                continue;
+            }
+            particlesGfx.beginFill(0xffffff, f.alpha);
+            particlesGfx.drawCircle(f.x, f.y, f.radius);
+            particlesGfx.endFill();
+        }
+    }
+
+    if (varState.active) {
+        particlesGfx.lineStyle(3, 0x06b6d4, 0.85);
+        particlesGfx.moveTo(varState.scanX, 20);
+        particlesGfx.lineTo(varState.scanX, H - 20);
+    }
 
     // 7. Banner
     if (highlightBanner.timer > 0) {
@@ -3308,7 +3538,7 @@ function triggerVisualDribble(isHomeDribble, dribblerName, defenderName, skillTi
 }
 
 // ==================== 8. SÚT BÓNG (ĐƯỜNG BÓNG RÕ RÀNG & THỦ MÔN BAY NGƯỜI CHUẨN XÁC) ====================
-function triggerVisualShot(isHomeAttack, isGoal, dist, shooterName, customZone) {
+function triggerVisualShot(isHomeAttack, isGoal, dist, shooterName, customZone, woodwork = null) {
     allPlayers.forEach(p => p.hasBall = false);
     const candidateList = isHomeAttack ? homePlayers : awayPlayers;
     let shooter = null;
@@ -3348,13 +3578,23 @@ function triggerVisualShot(isHomeAttack, isGoal, dist, shooterName, customZone) 
         const targetGoalX = isHomeAttack ? (W - 22) : 22;
         // Điểm rơi của bóng trên vạch vôi cầu môn (y = 228 đến y = 312)
         let targetGoalY = H / 2;
-        if (isGoal) {
+        let peakHeight = 14;
+
+        if (woodwork === 'crossbar') {
+            targetGoalY = H / 2 + (Math.random() - 0.5) * 36;
+            peakHeight = 24; // Bóng vồng cao đập xà ngang
+        } else if (woodwork === 'post') {
+            targetGoalY = (Math.random() < 0.5) ? 228 : 312; // Cột dọc trên hoặc dưới
+            peakHeight = 10;
+        } else if (isGoal) {
             // Bóng găm sát mép góc chữ A hoặc góc dưới cực hiểm (234 hoặc 306)
             const isTopCorner = Math.random() < 0.5;
             targetGoalY = isTopCorner ? (232 + Math.random() * 10) : (308 - Math.random() * 10);
+            peakHeight = 14;
         } else {
             // Sút trong tầm cản phá của thủ môn hoặc chệch cột dọc
             targetGoalY = 246 + Math.random() * 48;
+            peakHeight = 12;
         }
 
         const gk = isHomeAttack ? awayPlayers.find(p => p.pos === 'GK') : homePlayers.find(p => p.pos === 'GK');
@@ -3363,10 +3603,30 @@ function triggerVisualShot(isHomeAttack, isGoal, dist, shooterName, customZone) 
         passBall(targetGoalX, targetGoalY, {
             type: 'shot',
             speed: 11.2,
-            peakZ: 14,
+            peakZ: peakHeight,
             color: '#f59e0b',
             onArrival: () => {
-                if (isGoal) {
+                if (woodwork) {
+                    playWoodworkSound();
+                    spawnWoodworkSparkParticles(targetGoalX, targetGoalY);
+                    if (woodwork === 'crossbar') {
+                        triggerHighlightBanner("⚡ XÀ NGANG RUNG CHUYỂN!", `${shooter.name} nã đại bác dội xà ngang bật ngược ra ngoài!`, "#fde047", 85);
+                    } else {
+                        triggerHighlightBanner("⚡ CỘT DỌC TỪ CHỐI BÀN THẮNG!", `Pha dứt điểm của ${shooter.name} liếm mép cột dọc dội ngược lại sân!`, "#fde047", 85);
+                    }
+                    // Bóng dội ngược trở lại sân
+                    const reboundX = isHomeAttack ? (W - 170 - Math.random() * 60) : (170 + Math.random() * 60);
+                    const reboundY = H / 2 + (Math.random() - 0.5) * 110;
+                    passBall(reboundX, reboundY, {
+                        type: 'lob',
+                        speed: 8.5,
+                        peakZ: 14,
+                        color: '#fde047',
+                        onArrival: () => {
+                            playCrowdCheer('miss');
+                        }
+                    });
+                } else if (isGoal) {
                     spawnGoalParticles(targetGoalX, targetGoalY);
                     playGoalSound();
                 } else {
@@ -3640,6 +3900,9 @@ function triggerVisualFreeKick(isHome, dist = 24, takerName, isGoal = false) {
         df.targetY = fkY - 18 + idx * 18;
     });
 
+    // Trọng tài xịt bọt tuyết hàng rào (Vanishing Spray) cự ly 9.15m:
+    sprayVanishingFoam(wallX, fkY - 26, wallX, fkY + 26);
+
     playRefereeWhistle('foul');
     triggerHighlightBanner("🎯 ĐÁ PHẠT HÀNG RÀO!", `${taker.name} đứng trước quả đá phạt cự ly ${dist}m!`, "#f59e0b", 80);
 
@@ -3682,6 +3945,264 @@ function triggerVisualFreeKick(isHome, dist = 24, takerName, isGoal = false) {
             }, 75);
         }
     }, 550);
+}
+
+// ==================== 8.5. SÚT PHẠT ĐỀN 11M (PENALTY SHOOTOUT SHOWDOWN) ====================
+function triggerVisualPenalty(isHome, takerName, gkName, isGoal = true, penStyle = 'top_right') {
+    isPenaltySequence = true;
+    allPlayers.forEach(p => {
+        p.hasBall = false;
+        p.isDiving = false;
+    });
+
+    const attTeam = isHome ? homePlayers : awayPlayers;
+    const defTeam = isHome ? awayPlayers : homePlayers;
+
+    let taker = null;
+    if (takerName) {
+        taker = attTeam.find(p => p.fullName === takerName || p.name === takerName || (takerName.includes && takerName.includes(p.name)));
+    }
+    if (!taker) {
+        const strikers = attTeam.filter(p => (p.line === 'ATT' || p.pos === 'CAM') && (p.red_cards || 0) === 0);
+        taker = strikers.length ? strikers[0] : attTeam[9];
+    }
+
+    let gk = null;
+    if (gkName) {
+        gk = defTeam.find(p => p.fullName === gkName || p.name === gkName || (gkName.includes && gkName.includes(p.name)));
+    }
+    if (!gk) {
+        gk = defTeam.find(p => p.pos === 'GK') || defTeam[0];
+    }
+
+    // Tọa độ chấm phạt đền 11m và khung thành
+    const penSpotX = isHome ? (W - 100) : 100;
+    const penSpotY = H / 2; // 270
+    const targetGoalX = isHome ? (W - 22) : 22;
+
+    // Đặt bóng tại chấm 11m
+    ball.carrier = null;
+    ball.isFlying = false;
+    ball.x = penSpotX;
+    ball.y = penSpotY;
+    ball.z = 0;
+
+    // Đặt thủ môn trên vạch vôi giữa khung thành
+    gk.x = isHome ? (W - 32) : 32;
+    gk.y = penSpotY;
+    gk.targetX = gk.x;
+    gk.targetY = gk.y;
+
+    // Đặt Taker lùi lại 28px lấy đà sút
+    taker.x = isHome ? (penSpotX - 28) : (penSpotX + 28);
+    taker.y = penSpotY;
+    taker.targetX = taker.x;
+    taker.targetY = taker.y;
+
+    // Giải tỏa 20 cầu thủ còn lại đứng ngoài vòng cấm 16m50 và cung D-box
+    const waitLineX = isHome ? (W - 195) : 195;
+    let otherAttIdx = 0;
+    let otherDefIdx = 0;
+
+    allPlayers.forEach(p => {
+        if (p.id !== taker.id && p.id !== gk.id) {
+            p.hasBall = false;
+            if (p.team === (isHome ? 'home' : 'away')) {
+                p.targetX = waitLineX + (isHome ? -18 : 18) + (otherAttIdx % 2) * 16;
+                p.targetY = 160 + (otherAttIdx * 24);
+                otherAttIdx++;
+            } else {
+                p.targetX = waitLineX + (isHome ? -36 : 36) + (otherDefIdx % 2) * 16;
+                p.targetY = 170 + (otherDefIdx * 24);
+                otherDefIdx++;
+            }
+        }
+    });
+
+    // Trọng tài đứng mép cung D-box quan sát
+    referee.isControlled = true;
+    referee.targetX = isHome ? (penSpotX - 75) : (penSpotX + 75);
+    referee.targetY = penSpotY - 55;
+
+    playRefereeWhistle('foul');
+    triggerHighlightBanner("⚠️ PHẠT ĐỀN 11M ĐỐI MẶT!", `${taker.name} đối mặt thủ môn ${gk.name} trên chấm 11m định mệnh!`, "#ef4444", 85);
+
+    // Giai đoạn 1: Trọng tài tuýt còi cho phép đá sau 750ms
+    setTimeout(() => {
+        playRefereeWhistle('start');
+
+        // Giai đoạn 2: Taker chạy đà áp sát bóng (sau 350ms)
+        setTimeout(() => {
+            taker.targetX = isHome ? (penSpotX - 8) : (penSpotX + 8);
+
+            // Giai đoạn 3: Vung chân sút phạt đền! (sau 400ms)
+            setTimeout(() => {
+                playKickSound(true);
+
+                let targetGoalY = penSpotY;
+                let shotSpeed = 12.0;
+                let shotPeakZ = 14;
+
+                if (penStyle === 'panenka') {
+                    // Panenka: bấm bóng nhẹ cầu âu chính diện giữa khung thành
+                    targetGoalY = penSpotY + (Math.random() - 0.5) * 12;
+                    shotSpeed = 5.2;
+                    shotPeakZ = 22;
+                } else if (penStyle === 'top_right') {
+                    targetGoalY = 236; // Góc chữ A trên
+                    shotSpeed = 12.5;
+                    shotPeakZ = 16;
+                } else if (penStyle === 'top_left') {
+                    targetGoalY = 304; // Góc chữ A dưới
+                    shotSpeed = 12.5;
+                    shotPeakZ = 16;
+                } else if (penStyle === 'bottom_right') {
+                    targetGoalY = 238; // Chìm góc trên
+                    shotSpeed = 13.0;
+                    shotPeakZ = 3;
+                } else { // bottom_left
+                    targetGoalY = 302; // Chìm góc dưới
+                    shotSpeed = 13.0;
+                    shotPeakZ = 3;
+                }
+
+                // GK Đổ người cản phá
+                if (isGoal) {
+                    if (penStyle === 'panenka') {
+                        // Panenka làm thủ môn bị lừa đổ người sớm sang 1 bên
+                        gk.isDiving = true;
+                        gk.diveTimer = 65;
+                        gk.diveSpeed = 0.22;
+                        gk.diveTargetX = isHome ? (W - 35) : 35;
+                        gk.diveTargetY = (Math.random() < 0.5) ? 232 : 308;
+                        spawnGrassTurfParticles(gk.x, gk.y);
+                    } else {
+                        // Thủ môn đổ người nhưng bóng quá hiểm sát góc
+                        gk.isDiving = true;
+                        gk.diveTimer = 55;
+                        gk.diveSpeed = 0.16;
+                        gk.diveTargetX = isHome ? (W - 35) : 35;
+                        gk.diveTargetY = (Math.random() < 0.5) ? (targetGoalY < penSpotY ? 305 : 235) : (targetGoalY < penSpotY ? targetGoalY + 14 : targetGoalY - 14);
+                        spawnGrassTurfParticles(gk.x, gk.y);
+                    }
+                } else {
+                    // Thủ môn bắt bài xuất thần cản phá chính xác!
+                    gk.isDiving = true;
+                    gk.diveTimer = 55;
+                    gk.diveSpeed = 0.20;
+                    gk.diveTargetX = isHome ? (W - 35) : 35;
+                    gk.diveTargetY = targetGoalY;
+                    spawnGrassTurfParticles(gk.x, gk.y);
+                }
+
+                passBall(targetGoalX, targetGoalY, {
+                    type: 'shot',
+                    speed: shotSpeed,
+                    peakZ: shotPeakZ,
+                    color: penStyle === 'panenka' ? '#c084fc' : '#f59e0b',
+                    onArrival: () => {
+                        if (isGoal) {
+                            spawnGoalParticles(targetGoalX, targetGoalY);
+                            playGoalSound();
+                            if (penStyle === 'panenka') {
+                                triggerHighlightBanner("🎩 SIÊU PHẨM PANENKA!", `${taker.name} xúc thìa Panenka lạnh lùng đánh lừa ${gk.name}!`, "#c084fc", 95);
+                            } else {
+                                triggerHighlightBanner("🎯 PENALTY THÀNH CÔNG!", `${taker.name} dứt điểm hiểm hóc tung lưới ${gk.name}!`, "#10b981", 90);
+                            }
+                        } else {
+                            playGkSaveSound();
+                            spawnGKSavedParticles(gk.x, gk.y);
+                            triggerHighlightBanner("🧤 CẢN PHÁ 11M XUẤT THẦN!", `${gk.name} đổ người phi thường đẩy bóng cứu thua quả 11m của ${taker.name}!`, "#38bdf8", 95);
+                        }
+
+                        // Sau 2.5s đưa trận đấu trở lại bình thường
+                        setTimeout(() => {
+                            isPenaltySequence = false;
+                            referee.isControlled = false;
+                        }, 2500);
+                    }
+                });
+            }, 400);
+        }, 350);
+    }, 750);
+}
+
+// ==================== 8.6. HỆ THỐNG VAR (VIDEO ASSISTANT REFEREE) ====================
+function triggerVARReview(isHome, checkType = 'offside', decision = 'confirmed', playerName = '') {
+    playRefereeWhistle('foul');
+
+    varState.active = true;
+    varState.type = checkType;
+    varState.decision = decision;
+    varState.player = playerName;
+    varState.timer = 135;
+    varState.scanX = 0;
+    varState.isHome = isHome;
+
+    // Trọng tài chạy về màn hình VAR bên đường biên giữa sân
+    referee.isControlled = true;
+    referee.targetX = W / 2;
+    referee.targetY = 28;
+
+    const checkTitle = checkType === 'offside' ? 'KIỂM TRA VIỆT VỊ BÀN THẮNG' : 'KIỂM TRA PHẠT ĐỀN 11M';
+    triggerHighlightBanner(`🖥️ VAR: ${checkTitle}!`, `Trọng tài tạm dừng trận đấu xem lại video quay chậm tình huống của ${playerName || 'cầu thủ'}!`, "#06b6d4", 85);
+
+    const tickerEl = document.getElementById('tickerText');
+    if (tickerEl) {
+        tickerEl.innerHTML = `<span style="color:#06b6d4; font-weight:800;">🖥️ [VAR CHECKING...]</span> Đang dựng đường kẻ 3D kiểm tra ${checkType === 'offside' ? 'việt vị' : 'phạt đền'} của <strong>${playerName}</strong>!`;
+    }
+
+    // Sau 2.2 giây trọng tài đưa ra quyết định
+    setTimeout(() => {
+        playDigitalBeep();
+        referee.gestureTimer = 45;
+        referee.gestureType = 'var';
+
+        if (decision === 'disallowed') {
+            playRefereeWhistle('foul');
+            triggerHighlightBanner("❌ VAR TỪ CHỐI BÀN THẮNG!", `${playerName} đã việt vị trong gang tấc! Bàn thắng không được công nhận!`, "#ef4444", 95);
+            if (tickerEl) {
+                tickerEl.innerHTML = `<span style="color:#ef4444; font-weight:800;">❌ [VAR TỪ CHỐI]</span> <strong>${playerName}</strong> đã việt vị li ti! Quyết định hủy bàn thắng!`;
+            }
+        } else {
+            if (checkType === 'offside') {
+                playGoalSound();
+                triggerHighlightBanner("✅ VAR XÁC NHẬN BÀN THẮNG!", `Không có lỗi việt vị của ${playerName}! Bàn thắng hoàn toàn hợp lệ!`, "#10b981", 90);
+                if (tickerEl) {
+                    tickerEl.innerHTML = `<span style="color:#10b981; font-weight:800;">✅ [VAR HỢP LỆ]</span> <strong>${playerName}</strong> đứng trên hàng thủ! Bàn thắng được công nhận!`;
+                }
+            } else {
+                playRefereeWhistle('foul');
+                triggerHighlightBanner("✅ VAR XÁC NHẬN 11M!", `Phạm lỗi trong vòng 16m50! Trọng tài chỉ tay vào chấm phạt đền!`, "#10b981", 90);
+                if (tickerEl) {
+                    tickerEl.innerHTML = `<span style="color:#10b981; font-weight:800;">✅ [VAR PHẠT ĐỀN]</span> Xác nhận có phạm lỗi trong cấm địa! Quả phạt đền 11m!`;
+                }
+            }
+        }
+
+        setTimeout(() => {
+            varState.active = false;
+            referee.isControlled = false;
+        }, 1200);
+    }, 2200);
+}
+
+// ==================== 8.7. BẢNG BÙ GIỜ ĐIỆN TỬ TRỌNG TÀI BÀN (INJURY TIME BOARD) ====================
+function triggerInjuryTime(half, extraMinutes) {
+    playDigitalBeep();
+
+    const badge = document.getElementById('tvInjuryBadge');
+    if (badge) {
+        badge.textContent = `+${extraMinutes}'`;
+        badge.style.display = 'flex';
+    }
+
+    triggerHighlightBanner(`⏱️ BẢNG BÙ GIỜ: +${extraMinutes} PHÚT!`, `Trọng tài bàn giơ bảng LED điện tử thông báo bù giờ Hiệp ${half}!`, "#22c55e", 85);
+
+    const tickerEl = document.getElementById('tickerText');
+    if (tickerEl) {
+        tickerEl.innerHTML = `<span style="color:#22c55e; font-weight:800;">⏱️ [BẢNG BÙ GIỜ]</span> Trọng tài bàn giơ bảng LED: Hiệp ${half} có <strong>+${extraMinutes} phút</strong> bù giờ!`;
+    }
 }
 
 // ==================== 9. ĐỒNG HỒ & TICK TRẬN ĐẤU (2.6s / PHÚT = 2 PHÚT/HIỆP) ====================
@@ -3764,14 +4285,8 @@ function runTick() {
 
         // Cập nhật thẻ bù giờ
         const injuryBadge = document.getElementById('tvInjuryBadge');
-        if (currentMinute >= 43 && currentMinute <= 45) {
-            injuryBadge.style.display = 'inline-flex';
-            injuryBadge.textContent = "+2'";
-        } else if (currentMinute >= 88 && currentMinute <= 90) {
-            injuryBadge.style.display = 'inline-flex';
-            injuryBadge.textContent = "+4'";
-        } else {
-            injuryBadge.style.display = 'none';
+        if (currentMinute === 1 || currentMinute === 46) {
+            if (injuryBadge) injuryBadge.style.display = 'none';
         }
 
         // Cập nhật thể lực & thẻ phạt Đội Nhà trên tactical board
@@ -3852,104 +4367,109 @@ function runTick() {
 
         // Xử lý các sự kiện mới trong phút thi đấu
         if (data.new_events && data.new_events.length > 0) {
-            data.new_events.forEach(ev => {
-                const desc = typeof ev === 'object' ? (ev.description || '') : ev;
-                const type = (typeof ev === 'object' && ev.event_type) ? ev.event_type : '';
-                const evData = (typeof ev === 'object' && ev.data) ? ev.data : {};
+            data.new_events.forEach((ev, evIndex) => {
+                setTimeout(() => {
+                    const desc = typeof ev === 'object' ? (ev.description || '') : ev;
+                    const type = (typeof ev === 'object' && ev.event_type) ? ev.event_type : '';
+                    const evData = (typeof ev === 'object' && ev.data) ? ev.data : {};
 
-                // Cập nhật thanh bình luận trực tiếp
-                const tickerEl = document.getElementById('tickerText');
-                const tickerMin = document.getElementById('tickerMinute');
-                if (tickerEl) {
-                    tickerEl.textContent = desc.replace(/^[⚽🧤🪄🛡️⚠️🟨🟥⏱️📋🎯▶️🚩📐]\s*/u, '');
-                }
-                if (tickerMin && ev.minute) {
-                    tickerMin.textContent = `${ev.minute}'`;
-                }
+                    // Cập nhật thanh bình luận trực tiếp
+                    const tickerEl = document.getElementById('tickerText');
+                    const tickerMin = document.getElementById('tickerMinute');
+                    if (tickerEl) {
+                        tickerEl.textContent = desc.replace(/^[⚽🧤🪄🛡️⚠️🟨🟥⏱️📋🎯▶️🚩📐🖥️⚡]\s*/u, '');
+                    }
+                    if (tickerMin && ev.minute) {
+                        tickerMin.textContent = `${ev.minute}'`;
+                    }
 
-                if (type === 'goal') {
-                    playGoalSound();
-                    const isHome = evData.is_home !== undefined ? evData.is_home : (data.home_goals > lastHGoals);
-                    if (evData.zone && evData.zone.includes('Phạt góc')) {
-                        triggerVisualCorner(isHome, 'top', null, true, evData.shooter);
-                    } else if (evData.zone && evData.zone.includes('Đá phạt')) {
-                        triggerVisualFreeKick(isHome, evData.dist || 24, evData.shooter, true);
-                    } else {
-                        triggerVisualShot(isHome, true, evData.dist || 14, evData.shooter, evData.zone);
+                    if (type === 'goal') {
+                        playGoalSound();
+                        const isHome = evData.is_home !== undefined ? evData.is_home : (data.home_goals > lastHGoals);
+                        if (evData.zone && evData.zone.includes('Phạt góc')) {
+                            triggerVisualCorner(isHome, 'top', null, true, evData.shooter);
+                        } else if (evData.zone && evData.zone.includes('Đá phạt')) {
+                            triggerVisualFreeKick(isHome, evData.dist || 24, evData.shooter, true);
+                        } else {
+                            triggerVisualShot(isHome, true, evData.dist || 14, evData.shooter, evData.zone);
+                        }
+                        triggerHighlightBanner(
+                            `⚽ VÀOOO! ${evData.zone ? '(' + evData.zone + ')' : ''}`,
+                            `${evData.shooter || 'Cầu thủ'} ghi bàn thắng tuyệt đỉnh! Tỉ số ${data.home_goals}-${data.away_goals}`,
+                            "#10b981", 95
+                        );
+                    } else if (type === 'shot_miss') {
+                        playKickSound(true);
+                        triggerVisualShot(evData.is_home, false, evData.dist || 18, evData.shooter, evData.zone, evData.woodwork);
+                        if (!evData.woodwork) {
+                            const note = evData.target ? 'Bóng đi trúng đích nhưng thủ môn cản phá!' : 'Bóng đi chệch khung thành!';
+                            triggerHighlightBanner(
+                                `🧤 CƠ HỘI NGUY HIỂM! (${evData.dist || 18}m)`,
+                                `${evData.shooter || 'Cầu thủ'} dứt điểm - ${note}`,
+                                "#f59e0b", 70
+                            );
+                        }
+                    } else if (type === 'penalty_kick') {
+                        triggerVisualPenalty(evData.is_home, evData.taker, evData.gk, evData.is_goal, evData.style || 'top_right');
+                    } else if (type === 'var_check') {
+                        triggerVARReview(evData.is_home, evData.check_type, evData.decision, evData.player);
+                    } else if (type === 'injury_time') {
+                        triggerInjuryTime(evData.half, evData.extra_minutes);
+                    } else if (type === 'corner_kick') {
+                        triggerVisualCorner(evData.is_home, evData.side || 'top', evData.taker, false, evData.header_player);
+                        if (tickerEl) {
+                            tickerEl.innerHTML = `<span style="color:#38bdf8; font-weight:800;">🚩 [PHẠT GÓC]</span> <strong>${evData.taker || 'Cầu thủ'}</strong> câu bóng bổng vào vòng cấm địa!`;
+                        }
+                    } else if (type === 'throw_in') {
+                        triggerVisualThrowIn(evData.is_home, evData.side || 'top', evData.thrower, evData.receiver);
+                        if (tickerEl) {
+                            tickerEl.innerHTML = `<span style="color:#10b981; font-weight:800;">📐 [NÉM BIÊN]</span> <strong>${evData.thrower || 'Hậu vệ'}</strong> phối hợp ném biên chiến thuật với <strong>${evData.receiver || 'đồng đội'}</strong>!`;
+                        }
+                    } else if (type === 'free_kick') {
+                        triggerVisualFreeKick(evData.is_home, evData.dist || 24, evData.taker, false);
+                        if (tickerEl) {
+                            tickerEl.innerHTML = `<span style="color:#f59e0b; font-weight:800;">🎯 [ĐÁ PHẠT]</span> <strong>${evData.taker || 'Cầu thủ'}</strong> dứt điểm hàng rào cự ly <strong>${evData.dist || 24}m</strong>!`;
+                        }
+                    } else if (type === 'dribble_success') {
+                        triggerVisualDribble(evData.is_home, evData.dribbler, evData.defender, evData.skill_title, true);
+                        if (tickerEl) {
+                            tickerEl.innerHTML = `<span style="color:#38bdf8; font-weight:800;">⚡ [${evData.skill_title || 'KỸ THUẬT'}]</span> <strong>${evData.dribbler}</strong> đột phá ngoạn mục vượt qua <strong>${evData.defender}</strong>!`;
+                        }
+                    } else if (type === 'dribble_tackle') {
+                        triggerVisualDribble(evData.is_home, evData.dribbler, evData.defender, evData.skill_title, false);
+                        if (tickerEl) {
+                            tickerEl.innerHTML = `<span style="color:#f87171; font-weight:800;">🛡️ [ĐÁNH CHẶN]</span> <strong>${evData.defender}</strong> lăn xả cản phá pha đi bóng của <strong>${evData.dribbler}</strong>!`;
+                        }
+                    } else if (type === 'penalty_call') {
+                        playRefereeWhistle('foul');
+                        triggerHighlightBanner(
+                            `⚠️ PHẠT ĐỀN 11M!`,
+                            `${evData.fowler} phạm lỗi với ${evData.victim} trong vòng cấm địa!`,
+                            "#ef4444", 80
+                        );
+                    } else if (type === 'yellow_card') {
+                        playRefereeWhistle('foul');
+                        triggerHighlightBanner(
+                            `🟨 THẺ VÀNG!`,
+                            `Trọng tài rút thẻ vàng phạt ${evData.player} (${evData.team})!`,
+                            "#eab308", 75
+                        );
+                    } else if (type === 'red_card') {
+                        playRefereeWhistle('foul');
+                        triggerHighlightBanner(
+                            `🟥 THẺ ĐỎ - TRUẤT QUYỀN THI ĐẤU!`,
+                            `${evData.player} (${evData.team}) bị truất quyền thi đấu!`,
+                            "#dc2626", 100
+                        );
+                    } else if (type === 'foul') {
+                        playRefereeWhistle('foul');
+                        triggerHighlightBanner(
+                            `⚠️ TIẾNG CÒI PHẠM LỖI!`,
+                            `${evData.fowler} phạm lỗi với ${evData.victim}. Đá phạt!`,
+                            "#fb923c", 55
+                        );
                     }
-                    triggerHighlightBanner(
-                        `⚽ VÀOOO! ${evData.zone ? '(' + evData.zone + ')' : ''}`,
-                        `${evData.shooter || 'Cầu thủ'} ghi bàn thắng tuyệt đỉnh! Tỉ số ${data.home_goals}-${data.away_goals}`,
-                        "#10b981", 95
-                    );
-                } else if (type === 'shot_miss') {
-                    playKickSound(true);
-                    triggerVisualShot(evData.is_home, false, evData.dist || 18, evData.shooter, evData.zone);
-                    const note = evData.target ? 'Bóng đi trúng đích nhưng thủ môn cản phá!' : 'Bóng đi chệch khung thành!';
-                    triggerHighlightBanner(
-                        `🧤 CƠ HỘI NGUY HIỂM! (${evData.dist || 18}m)`,
-                        `${evData.shooter || 'Cầu thủ'} dứt điểm - ${note}`,
-                        "#f59e0b", 70
-                    );
-                } else if (type === 'corner_kick') {
-                    triggerVisualCorner(evData.is_home, evData.side || 'top', evData.taker, false, evData.header_player);
-                    const tickerEl = document.getElementById('tickerText');
-                    if (tickerEl) {
-                        tickerEl.innerHTML = `<span style="color:#38bdf8; font-weight:800;">🚩 [PHẠT GÓC]</span> <strong>${evData.taker || 'Cầu thủ'}</strong> câu bóng bổng vào vòng cấm địa!`;
-                    }
-                } else if (type === 'throw_in') {
-                    triggerVisualThrowIn(evData.is_home, evData.side || 'top', evData.thrower, evData.receiver);
-                    const tickerEl = document.getElementById('tickerText');
-                    if (tickerEl) {
-                        tickerEl.innerHTML = `<span style="color:#10b981; font-weight:800;">📐 [NÉM BIÊN]</span> <strong>${evData.thrower || 'Hậu vệ'}</strong> phối hợp ném biên chiến thuật với <strong>${evData.receiver || 'đồng đội'}</strong>!`;
-                    }
-                } else if (type === 'free_kick') {
-                    triggerVisualFreeKick(evData.is_home, evData.dist || 24, evData.taker, false);
-                    const tickerEl = document.getElementById('tickerText');
-                    if (tickerEl) {
-                        tickerEl.innerHTML = `<span style="color:#f59e0b; font-weight:800;">🎯 [ĐÁ PHẠT]</span> <strong>${evData.taker || 'Cầu thủ'}</strong> dứt điểm hàng rào cự ly <strong>${evData.dist || 24}m</strong>!`;
-                    }
-                } else if (type === 'dribble_success') {
-                    triggerVisualDribble(evData.is_home, evData.dribbler, evData.defender, evData.skill_title, true);
-                    const tickerEl = document.getElementById('tickerText');
-                    if (tickerEl) {
-                        tickerEl.innerHTML = `<span style="color:#38bdf8; font-weight:800;">⚡ [${evData.skill_title || 'KỸ THUẬT'}]</span> <strong>${evData.dribbler}</strong> đột phá ngoạn mục vượt qua <strong>${evData.defender}</strong>!`;
-                    }
-                } else if (type === 'dribble_tackle') {
-                    triggerVisualDribble(evData.is_home, evData.dribbler, evData.defender, evData.skill_title, false);
-                    const tickerEl = document.getElementById('tickerText');
-                    if (tickerEl) {
-                        tickerEl.innerHTML = `<span style="color:#f87171; font-weight:800;">🛡️ [ĐÁNH CHẶN]</span> <strong>${evData.defender}</strong> lăn xả cản phá pha đi bóng của <strong>${evData.dribbler}</strong>!`;
-                    }
-                } else if (type === 'penalty_call') {
-                    playRefereeWhistle('foul');
-                    triggerHighlightBanner(
-                        `⚠️ PHẠT ĐỀN 11M!`,
-                        `${evData.fowler} phạm lỗi với ${evData.victim} trong vòng cấm địa!`,
-                        "#ef4444", 80
-                    );
-                } else if (type === 'yellow_card') {
-                    playRefereeWhistle('foul');
-                    triggerHighlightBanner(
-                        `🟨 THẺ VÀNG!`,
-                        `Trọng tài rút thẻ vàng phạt ${evData.player} (${evData.team})!`,
-                        "#eab308", 75
-                    );
-                } else if (type === 'red_card') {
-                    playRefereeWhistle('foul');
-                    triggerHighlightBanner(
-                        `🟥 THẺ ĐỎ - TRUẤT QUYỀN THI ĐẤU!`,
-                        `${evData.player} (${evData.team}) bị truất quyền thi đấu!`,
-                        "#dc2626", 100
-                    );
-                } else if (type === 'foul') {
-                    playRefereeWhistle('foul');
-                    triggerHighlightBanner(
-                        `⚠️ TIẾNG CÒI PHẠM LỖI!`,
-                        `${evData.fowler} phạm lỗi với ${evData.victim}. Đá phạt!`,
-                        "#fb923c", 55
-                    );
-                }
+                }, evIndex * 850);
             });
             lastHGoals = data.home_goals;
             lastAGoals = data.away_goals;

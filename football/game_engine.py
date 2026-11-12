@@ -259,6 +259,24 @@ def run_minutes(match, start_min, end_min, home_tactic="Can bang", away_tactic="
         if not home_active or not away_active:
             continue
 
+        # Thông báo bù giờ hiệp 1 & hiệp 2 từ bảng điện tử trọng tài bàn
+        if minute == 45:
+            extra_min = random.choice([2, 3, 4])
+            match.add_event(
+                45,
+                f"⏱️ BẢNG BÙ GIỜ! Trọng tài bàn giơ bảng LED: Hiệp 1 có +{extra_min} phút bù giờ!",
+                event_type="injury_time",
+                data={"half": 1, "extra_minutes": extra_min}
+            )
+        elif minute == 90:
+            extra_min = random.choice([3, 4, 5])
+            match.add_event(
+                90,
+                f"⏱️ BẢNG BÙ GIỜ! Trọng tài bàn giơ bảng LED: Hiệp 2 có +{extra_min} phút bù giờ!",
+                event_type="injury_time",
+                data={"half": 2, "extra_minutes": extra_min}
+            )
+
         # 2. Tiêu hao thể lực theo đặc thù vị trí
         base_loss = 0.35 if home_tactic == "Tan cong" else (0.22 if home_tactic in ["Phong thu", "Xe bus"] else (0.32 if home_tactic == "Phan cong" else 0.28))
         for p in home_active:
@@ -351,6 +369,25 @@ def run_minutes(match, start_min, end_min, home_tactic="Can bang", away_tactic="
             shooter_tag = f"[{shooter_pos}] {shooter.name}"
 
             if random.random() < final_prob:
+                # 8% cơ hội kích hoạt VAR kiểm tra việt vị khi ghi bàn
+                if random.random() < 0.08:
+                    is_offside_disallowed = (random.random() < 0.35)
+                    if is_offside_disallowed:
+                        match.add_event(
+                            minute,
+                            f"🖥️ VAR TỪ CHỐI BÀN THẮNG! Phút {minute}: Trọng tài tham khảo VAR và xác định {shooter_tag} đã việt vị li ti khi nhận bóng! Bàn thắng không được công nhận!",
+                            event_type="var_check",
+                            data={"is_home": is_home_attack, "check_type": "offside", "decision": "disallowed", "player": shooter.name}
+                        )
+                        continue
+                    else:
+                        match.add_event(
+                            minute,
+                            f"🖥️ VAR XÁC NHẬN! Phút {minute}: Phòng VAR kiểm tra kĩ lưỡng đường chuyền và xác định {shooter_tag} không hề việt vị! Bàn thắng hợp lệ!",
+                            event_type="var_check",
+                            data={"is_home": is_home_attack, "check_type": "offside", "decision": "confirmed", "player": shooter.name}
+                        )
+
                 # BÀN THẮNG (GOAL)
                 if is_home_attack:
                     match.home_goals += 1
@@ -370,24 +407,41 @@ def run_minutes(match, start_min, end_min, home_tactic="Can bang", away_tactic="
             else:
                 # KHÔNG VÀO
                 is_target = (random.random() < 0.60)
-                if is_target:
+                is_woodwork = (random.random() < 0.22 and dist <= 28)
+                woodwork_type = random.choice(['crossbar', 'post']) if is_woodwork else None
+
+                if is_target or is_woodwork:
                     if is_home_attack:
                         match.target_home += 1
                     else:
                         match.target_away += 1
 
                 gk_tag = f"[GK] {gk.name}"
-                reasons = [
-                    f"nhưng thủ môn {gk_tag} đã xuất sắc bay người cản phá ngoạn mục",
-                    f"nhưng bóng đi chệch cột dọc trong gang tấc",
-                    f"nhưng bóng đập trúng xà ngang bật ra ngoài đầy tiếc nuối",
-                    f"nhưng trung vệ đối phương đã kịp thời lăn xả xoạc bóng giải nguy trên vạch vôi"
-                ]
+                if is_woodwork:
+                    if woodwork_type == 'crossbar':
+                        res_desc = "nhưng bóng đập trúng XÀ NGANG rung chuyển khung gỗ bật ra ngoài đầy tiếc nuối!"
+                    else:
+                        res_desc = "nhưng bóng liếm mép CỘT DỌC dội ngược lại mặt cỏ sân thi đấu!"
+                else:
+                    reasons = [
+                        f"nhưng thủ môn {gk_tag} đã xuất sắc bay người cản phá ngoạn mục",
+                        f"nhưng bóng đi chệch cột dọc trong gang tấc",
+                        f"nhưng trung vệ đối phương đã kịp thời lăn xả xoạc bóng giải nguy trên vạch vôi"
+                    ]
+                    res_desc = random.choice(reasons)
+
                 match.add_event(
                     minute,
-                    f"🧤 Cơ hội! Phút {minute}: {shooter_tag} ({att_team.name}) {shot_desc}, {random.choice(reasons)}.",
+                    f"🧤 Cơ hội! Phút {minute}: {shooter_tag} ({att_team.name}) {shot_desc}, {res_desc}",
                     event_type="shot_miss",
-                    data={"is_home": is_home_attack, "dist": dist, "shooter": shooter.name, "target": is_target, "pos": shooter_pos}
+                    data={
+                        "is_home": is_home_attack,
+                        "dist": dist,
+                        "shooter": shooter.name,
+                        "target": is_target,
+                        "pos": shooter_pos,
+                        "woodwork": woodwork_type
+                    }
                 )
 
         # ==========================================================
@@ -537,9 +591,18 @@ def run_minutes(match, start_min, end_min, home_tactic="Can bang", away_tactic="
             # --- 3.1: PHẠT ĐỀN 11M (PENALTY TRONG VÒNG CẤM) ---
             # Thường do hậu vệ hoặc thủ môn phạm lỗi khi ngăn chặn tiền đạo đột phá trong 16m50
             if foul_severity < 0.08 and fowler_pos in ['CB', 'LB', 'RB', 'LWB', 'RWB', 'CDM', 'GK']:
+                # 35% có VAR kiểm tra lại pha phạm lỗi trong 16m50
+                if random.random() < 0.35:
+                    match.add_event(
+                        minute,
+                        f"🖥️ VAR KIỂM TRA PHẠT ĐỀN! Phút {minute}: Trọng tài tạm dừng trận đấu xem lại video xác định {fowler_tag} có phạm lỗi trong vòng cấm hay không!",
+                        event_type="var_check",
+                        data={"is_home": not is_home_foul, "check_type": "penalty", "decision": "confirmed", "player": victim.name}
+                    )
+
                 match.add_event(
                     minute,
-                    f"⚠️ PHẠT ĐỀN 11M! Phút {minute}: {fowler_tag} ({foul_team.name}) đốn ngã {victim_tag} trái phép trong vòng cấm địa! Trọng tài dứt khoát chỉ tay vào chấm phạt đền 11m!",
+                    f"⚠️ PHẠT ĐỀN 11M! Phút {minute}: {fowler_tag} ({foul_team.name}) đốn ngã {victim_tag} trong vòng cấm địa! Trọng tài dứt khoát chỉ tay vào chấm phạt đền 11m!",
                     event_type="penalty_call",
                     data={"is_home_foul": is_home_foul, "fowler": fowler.name, "victim": victim.name}
                 )
@@ -558,8 +621,11 @@ def run_minutes(match, start_min, end_min, home_tactic="Can bang", away_tactic="
                 else:
                     match.shots_home += 1
 
-                # Tỷ lệ ghi bàn trên chấm 11m (~76%)
-                if random.random() < 0.76:
+                pen_styles = ['top_right', 'top_left', 'bottom_right', 'bottom_left', 'panenka']
+                chosen_style = random.choice(pen_styles)
+                is_pen_goal = (random.random() < 0.76)
+
+                if is_pen_goal:
                     if is_home_foul:
                         match.away_goals += 1
                         match.target_away += 1
@@ -568,11 +634,12 @@ def run_minutes(match, start_min, end_min, home_tactic="Can bang", away_tactic="
                         match.target_home += 1
 
                     taker.goals += 1
+                    style_desc = "bằng cú xúc thìa Panenka lạnh lùng" if chosen_style == 'panenka' else "găm thẳng vào góc chữ A"
                     match.add_event(
                         minute,
-                        f"🎯 PENALTY VÀOOO! Phút {minute}: Trên chấm 11m, {taker_tag} lạnh lùng đánh lừa thủ môn {gk_tag}! Tỉ số: {match.home_goals}-{match.away_goals}",
-                        event_type="goal",
-                        data={"is_home": not is_home_foul, "shooter": taker.name}
+                        f"🎯 PENALTY VÀOOO! Phút {minute}: Trên chấm 11m, {taker_tag} {style_desc} đánh lừa thủ môn {gk_tag}! Tỉ số: {match.home_goals}-{match.away_goals}",
+                        event_type="penalty_kick",
+                        data={"is_home": not is_home_foul, "taker": taker.name, "gk": gk.name, "is_goal": True, "style": chosen_style}
                     )
                 else:
                     if is_home_foul:
@@ -583,8 +650,8 @@ def run_minutes(match, start_min, end_min, home_tactic="Can bang", away_tactic="
                     match.add_event(
                         minute,
                         f"🧤 PENALTY KHÔNG VÀO! Phút {minute}: Cú sút phạt đền 11m của {taker_tag} đã bị thủ môn {gk_tag} xuất thần bay người cản phá thành công!",
-                        event_type="shot_miss",
-                        data={"is_home": not is_home_foul, "shooter": taker.name}
+                        event_type="penalty_kick",
+                        data={"is_home": not is_home_foul, "taker": taker.name, "gk": gk.name, "is_goal": False, "style": chosen_style}
                     )
 
             # --- 3.2: THẺ VÀNG 🟨 ---
